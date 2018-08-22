@@ -19,8 +19,7 @@ import torch.nn as nn
 def basic_weight_init(module: nn.Module):
     """weight_init(model) or model.apply(weight_init)
 
-    This function initializes the weights of a module using xavier_normal,
-    works with leaky ReLU activation function.
+    This function initializes the weights of a module using xavier_normal.
 
     Args:
         module (nn.Module): PyTorch module to be initialized.
@@ -28,5 +27,4 @@ def basic_weight_init(module: nn.Module):
         None
     """
     if type(module) in [nn.Linear, ]:
-        nn.init.xavier_normal_(module.weight,
-                               gain=nn.init.calculate_gain('relu'))
+        nn.init.xavier_normal_(module.weight)

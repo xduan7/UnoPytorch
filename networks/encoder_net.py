@@ -16,8 +16,8 @@ class EncoderNet(nn.Module):
     def __init__(self,
                  input_dim: int,
                  layer_dim: int,
-                 latent_dim: int,
                  num_layers: int,
+                 latent_dim: int,
                  autoencoder: bool=True):
 
         super(EncoderNet, self).__init__()

@@ -1,5 +1,5 @@
 """ 
-    File Name:          UnoPytorch/encoder_init.py
+    File Name:          UnoPytorch/encoder_initialization.py
     Author:             Xiaotian Duan (xduan7)
     Email:              xduan7@uchicago.edu
     Date:               8/16/18

@@ -22,19 +22,19 @@ if __name__ == '__main__':
         #  'val_src': ['GDSC'], },
 
         {'trn_src': ['NCI60'],
-         'val_src': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
+         'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
 
         {'trn_src': ['CTRP'],
-         'val_src': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
+         'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
 
         {'trn_src': ['GDSC'],
-         'val_src': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
+         'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
 
         {'trn_src': ['CCLE'],
-         'val_src': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
+         'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
 
         {'trn_src': ['gCSI'],
-         'val_src': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
+         'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
     ]
 
     for param_dict in param_dict_list:
@@ -55,47 +55,72 @@ if __name__ == '__main__':
         sys.argv = [
             'uno_pytorch',
 
-            '--training_src', *param_dict['trn_src'],
-            '--validation_src', *param_dict['val_src'],
-            '--precision', 'full',
+            # Dataset parameters ##############################################
+            # Training and validation data sources
+            '--trn_src', *param_dict['trn_src'],
+            '--val_srcs', *param_dict['val_srcs'],
 
+            # Pre-processing for dataframes
             '--growth_scaling', 'none',
             '--descriptor_scaling', 'std',
             '--rnaseq_scaling', 'std',
             '--nan_threshold', '0.0',
 
+            # Feature usage and partitioning settings
             '--rnaseq_feature_usage', 'combat',
             '--drug_feature_usage', 'both',
             '--validation_size', '0.15',
             # '--disjoint_drugs',
             '--disjoint_cells',
-            
-            '--autoencoder_init',
 
-            '--gene_layer_dim', '1024',
-            '--gene_latent_dim', '256',
+            # Network configuration ###########################################
+            # Encoders for drug features and RNA sequence (LINCS 1000)
+            '--gene_layer_dim', '512',
+            '--gene_latent_dim', '128',
             '--gene_num_layers', '2',
 
-            '--drug_layer_dim', '4096',
-            '--drug_latent_dim', '1024',
+            '--drug_layer_dim', '2048',
+            '--drug_latent_dim', '512',
             '--drug_num_layers', '2',
 
-            '--resp_layer_dim', '1024',
+            # Using autoencoder for drug/sequence encoder initialization
+            '--ae_init',
+
+            # Drug response regression network
+            '--resp_layer_dim', '512',
             '--resp_num_layers', '2',
             '--resp_dropout', '0.0',
             '--resp_num_blocks', '3',
             '--resp_activation', 'none',
 
-            '--loss_func', 'mse',
-            '--optimizer', 'Adam',
-            '--resp_lr', '2e-5',
-            '--decay_factor', '0.95',
+            # RNA sequence classification network(s)
+            '--clf_layer_dim', '32',
+            '--clf_num_layers', '1',
+
+            # Training parameters #############################################
+            # Drug response regression training parameters
+            '--resp_loss_func', 'mse',
+            '--resp_opt', 'Adam',
+            '--resp_lr', '1e-5',
+
+            # Early stopping based on R2 score of drug response prediction
             '--early_stop_patience', '10',
-            '--training_batch_size', '32',
-            '--validation_batch_size', '256',
+
+            # RNA sequence classification training parameters
+            '--clf_opt', 'Adam',
+            '--clf_lr', '1e-4',
+
+            # Global/shared training parameters
+            '--decay_factor', '0.95',
+            '--trn_batch_size', '32',
+            '--val_batch_size', '256',
             '--max_num_batches', '1000',
             '--max_num_epochs', '100',
-            '--log_interval', '10',
+
+            # Miscellaneous settings ##########################################
+            '--precision', 'full',
+            # '--no_cuda'
+            '--rand_state', '0',
         ]
 
         runpy.run_module('uno_pytorch')

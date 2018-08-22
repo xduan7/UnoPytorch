@@ -31,7 +31,7 @@ def get_labels(dict_path: str):
     with open(dict_path, 'r') as f:
         label_encoding_dict = json.load(f)
 
-    return [l for l in label_encoding_dict.keys() if type(l) is str]
+    return [l for l in label_encoding_dict.keys() if not l.isdigit()]
 
 
 def get_label_encoding_dict(dict_path: str, labels: iter):
@@ -40,8 +40,11 @@ def get_label_encoding_dict(dict_path: str, labels: iter):
     This function takes all the labels and a path, constructs a dictionary of
     label mapping. The dictionary contains forward and backward mapping from
     keys to values.
-    For example, the label encoding dictionary for ['A', 'B', 'C'] is {0: 'A',
-    1: 'B', 2: 'C', 'A': 0, 'B': 1, 'C': 2}.
+    For example, the label encoding dictionary for ['A', 'B', 'C'] is
+    {0: 'A', 1: 'B', 2: 'C', 'A': 0, 'B': 1, 'C': 2}.
+
+    Note that due to JSON formatting, the keys cannot be integers,
+    which means that the actual storage
 
     Args:
         dict_path (str): Path to store the dictionary for label encoding.
@@ -62,15 +65,16 @@ def get_label_encoding_dict(dict_path: str, labels: iter):
             # Check if the labels in dict are indeed the labels to be encoded
             old_labels = get_labels(dict_path)
 
-            if set(labels) != set(old_labels):
+            if len(set(labels) - set(old_labels)) != 0:
 
                 # If not, extend the label encoding dict
+                old_idx = len(old_labels)
                 for idx, l in enumerate(set(labels) - set(old_labels)):
-                    label_encoding_dict[idx + len(old_labels)] = l
-                    label_encoding_dict[l] = idx + len(old_labels)
+                    label_encoding_dict[idx + old_idx] = l
+                    label_encoding_dict[l] = idx + old_idx
 
                 with open(dict_path, 'w') as f:
-                    json.dump(label_encoding_dict, f)
+                    json.dump(label_encoding_dict, f, indent=4)
 
     except OSError as e:
 
@@ -84,7 +88,7 @@ def get_label_encoding_dict(dict_path: str, labels: iter):
                 label_encoding_dict[src] = idx
 
             with open(dict_path, 'w') as f:
-                json.dump(label_encoding_dict, f)
+                json.dump(label_encoding_dict, f, indent=4)
         else:
             logger.error('Error loading %s.' % dict_path, exc_info=True)
 
@@ -96,7 +100,9 @@ def get_label_encoding_dict(dict_path: str, labels: iter):
     return label_encoding_dict
 
 
-def encode_labels(labels: pd.Series or list, dict_path: str):
+def encode_label_to_int(labels: pd.Series or list,
+                        dict_path: str,
+                        dtype: type=int):
     """dataframe['A'] = label_encoding(dataframe['A'], './path/')
 
     This function encodes a series into numeric and return as a list. In the
@@ -117,6 +123,34 @@ def encode_labels(labels: pd.Series or list, dict_path: str):
 
     label_encoding_dict: dict \
         = get_label_encoding_dict(dict_path, list(set(label_list)))
-    encoded_series = [label_encoding_dict[s] for s in label_list]
+    encoded_list = [dtype(label_encoding_dict[s]) for s in label_list]
 
-    return encoded_series
+    return encoded_list, label_encoding_dict
+
+
+def encode_int_to_onehot(labels: pd.Series or list,
+                         num_classes: int,
+                         dtype: type):
+
+    if type(labels) is list:
+        label_list = list(set(labels))
+    else:
+        label_list = labels.tolist()
+
+    encoded_list = []
+
+    for l in label_list:
+        encoded = [0] * num_classes
+        encoded[l] = 1
+        encoded = list(map(dtype, encoded))
+        encoded_list.append(encoded)
+
+    return encoded_list
+
+
+
+
+
+
+
+

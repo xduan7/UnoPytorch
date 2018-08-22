@@ -20,7 +20,7 @@ from sklearn.model_selection import train_test_split
 
 from utils.miscellaneous.file_downloading import download_files
 from utils.miscellaneous.dataframe_scaling import scale_dataframe
-from utils.miscellaneous.label_encoding import encode_labels, \
+from utils.miscellaneous.label_encoding import encode_label_to_int, \
     get_label_encoding_dict
 
 
@@ -181,7 +181,8 @@ class DrugRespDataset(data.Dataset):
         if summary:
             print('=' * 80)
             print(('Training' if self.training else 'Validation')
-                  + ' Dataset Summary (Data Source: %6s):' % self.data_source)
+                  + ' Drug Response Dataset Summary (Data Source: %6s):'
+                  % self.data_source)
             print('\t%i Drug Response Records .' % len(self.__drug_resp_df))
             print('\t%i Unique Drugs (feature dim: %4i).'
                   % (len(self.drugs), self.drug_feature_dim))
@@ -248,7 +249,7 @@ class DrugRespDataset(data.Dataset):
         # Encode data sources into numeric
         data_src_dict_path = os.path.join(
             self.__processed_data_folder, 'data_src_dict.json')
-        drug_resp_df['SOURCE'] = encode_labels(
+        drug_resp_df['SOURCE'] = encode_label_to_int(
             drug_resp_df['SOURCE'], data_src_dict_path)
 
         # Scaling the growth
@@ -263,7 +264,6 @@ class DrugRespDataset(data.Dataset):
 
         # Save the dataframe into processed folder
         drug_resp_df.to_pickle(drug_resp_df_path)
-
         return drug_resp_df
 
     def __process_drug_feature(self):
