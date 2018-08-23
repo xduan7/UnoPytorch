@@ -8,7 +8,9 @@
 
 """
 import copy
+import multiprocessing
 import os
+
 import numpy as np
 import pandas as pd
 import torch
@@ -18,11 +20,12 @@ from torch.optim import Adam, RMSprop, SGD
 from torch.optim.lr_scheduler import LambdaLR
 
 from networks.encoder_net import EncoderNet
-from utils.datasets.df_dataset import DFDataset
+from utils.datasets.basic_dataset import DataFrameDataset
+from utils.miscellaneous.optimizer import get_optimizer
+from utils.miscellaneous.random_seeding import seed_random_state
 
 
 def encoder_init(
-
         ae_int: bool,
         model_path: str,
         training_df: pd.DataFrame,
@@ -46,11 +49,6 @@ def encoder_init(
         device: str = 'cuda',
         verbose: bool = True, ):
 
-    # Setting up random seed first
-    np.random.seed(rand_state)
-    torch.manual_seed(rand_state)
-    torch.cuda.manual_seed_all(rand_state)
-
     # If autoencoder initialization is not required, return a fresh encoder
     if not ae_int:
         net = EncoderNet(
@@ -66,16 +64,22 @@ def encoder_init(
         net = torch.load(model_path)
         return net.half() if precision.lower() == 'half' else net
 
+    # Setting up random seed for reproducible and deterministic results
+    seed_random_state(rand_state)
+
     # Otherwise, construct and train a new autoencoder
     loader_kwargs = \
-        {'num_workers': 16, 'pin_memory': True} if device == 'cuda' else {}
+        {'num_workers': multiprocessing.cpu_count(),
+         'pin_memory': True} if device == 'cuda' else {}
+
     training_dataloader = torch.utils.data.DataLoader(
-        DFDataset(training_df),
+        DataFrameDataset(training_df),
         batch_size=training_batch_size,
         shuffle=True,
         **loader_kwargs)
+
     validation_dataloader = torch.utils.data.DataLoader(
-        DFDataset(validation_df),
+        DataFrameDataset(validation_df),
         batch_size=validation_batch_size,
         shuffle=True,
         **loader_kwargs)
@@ -88,17 +92,14 @@ def encoder_init(
         autoencoder=True).to(device)
     net = net.half() if precision.lower() == 'half' else net
 
-    if optimizer.lower() == 'adam':
-        opt = Adam(net.parameters(), lr=learning_rate, amsgrad=True)
-    elif optimizer.lower() == 'rmsprop':
-        opt = RMSprop(net.parameters(), lr=learning_rate, momentum=0.2)
-    else:
-        opt = SGD(net.parameters(), lr=learning_rate, momentum=0.8)
+    opt = get_optimizer(opt_type=optimizer,
+                        networks=net,
+                        learning_rate=learning_rate)
     lr_decay = LambdaLR(opt, lr_lambda=lambda e: decay_factor ** e)
     loss_func = F.l1_loss if loss_func == 'l1' else F.mse_loss
 
     # Training and validation loop
-    best_val_loss = np.finfo('float32').max
+    best_val_loss = np.inf
     best_model = None
     patience = 0
     for epoch in range(1, num_epochs + 1):
@@ -159,7 +160,7 @@ def encoder_init(
 def get_gene_encoder(
         model_folder: str,
 
-        traning_df: pd.DataFrame,
+        training_df: pd.DataFrame,
         validation_df: pd.DataFrame,
 
         layer_dim: int,
@@ -178,7 +179,7 @@ def get_gene_encoder(
 
     return encoder_init(
         model_path=model_path,
-        training_df=traning_df,
+        training_df=training_df,
         validation_df=validation_df,
 
         layer_dim=layer_dim,
@@ -191,7 +192,7 @@ def get_gene_encoder(
 def get_drug_encoder(
         model_folder: str,
 
-        traning_df: pd.DataFrame,
+        training_df: pd.DataFrame,
         validation_df: pd.DataFrame,
 
         layer_dim: int,
@@ -212,7 +213,7 @@ def get_drug_encoder(
 
     return encoder_init(
         model_path=model_path,
-        training_df=traning_df,
+        training_df=training_df,
         validation_df=validation_df,
 
         layer_dim=layer_dim,
@@ -304,7 +305,7 @@ def get_encoders(
     gene_encoder = get_gene_encoder(
         model_folder=model_folder,
 
-        traning_df=trn_rnaseq_df,
+        training_df=trn_rnaseq_df,
         validation_df=val_rnaseq_df,
 
         layer_dim=gene_layer_dim,
@@ -319,7 +320,7 @@ def get_encoders(
     drug_encoder = get_drug_encoder(
         model_folder=model_folder,
 
-        traning_df=trn_drug_df,
+        training_df=trn_drug_df,
         validation_df=val_drug_df,
 
         layer_dim=drug_layer_dim,

@@ -131,10 +131,16 @@ class RNASeqDataset(data.Dataset):
         # Train/validation split ##############################################
         self.__split_drug_resp()
 
+        # Converting dataframes to arrays for rapid access ####################
+        self.__cl_array = self.__cl_df.values
+
         # Public attributes ###################################################
         self.cells = self.__cl_df.index.tolist()
         self.num_cells = self.__cl_df.shape[0]
         self.rnaseq_dim = len(self.__cl_df.iloc[0]['seq'])
+
+        # Clear the dataframes ################################################
+        self.__cl_df = None
 
         # Dataset summary #####################################################
         if summary:
@@ -144,9 +150,6 @@ class RNASeqDataset(data.Dataset):
             print('\t%i Unique Cell Lines (feature dim: %4i).'
                   % (self.num_cells, self.rnaseq_dim))
             print('=' * 80)
-
-    def get_cell_df(self):
-        return self.__cl_df
 
     def __len__(self):
         """length = len(cell_line_dataset)
@@ -170,15 +173,15 @@ class RNASeqDataset(data.Dataset):
                     site (float), type (float), category (float).
         """
 
-        cl_data = self.__cl_df.iloc[index]
+        cl_data = self.__cl_array[index]
 
-        rnaseq = np.asarray(cl_data['seq'], dtype=self.__output_dtype)
-        data_src = np.array(cl_data['data_src'], dtype=self.__output_dtype)
+        rnaseq = np.asarray(cl_data[4], dtype=self.__output_dtype)
+        data_src = np.array(cl_data[0], dtype=self.__output_dtype)
 
         # Note that PyTorch requires np.int64 for classification labels
-        cl_site = np.int64(cl_data['site'])
-        cl_type = np.int64(cl_data['type'])
-        cl_category = np.int64(cl_data['category'])
+        cl_site = np.int64(cl_data[1])
+        cl_type = np.int64(cl_data[2])
+        cl_category = np.int64(cl_data[3])
 
         return rnaseq, data_src, cl_site, cl_type, cl_category
 
@@ -337,3 +340,5 @@ if __name__ == '__main__':
         RNASeqDataset(data_folder='../../data/',
                       training=False),
         batch_size=512, shuffle=False)
+
+    tmp = dataloader.dataset[0]

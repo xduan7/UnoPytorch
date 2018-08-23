@@ -1,5 +1,5 @@
 """ 
-    File Name:          UnoPytorch/df_dataset.py
+    File Name:          UnoPytorch/basic_dataset.py
     Author:             Xiaotian Duan (xduan7)
     Email:              xduan7@uchicago.edu
     Date:               8/16/18
@@ -12,10 +12,13 @@ import numpy as np
 import pandas as pd
 import torch.utils.data as data
 
+from utils.miscellaneous.dataframe_to_dict import df_to_dict
 
-class DFDataset(data.Dataset):
+
+class DataFrameDataset(data.Dataset):
 
     def __init__(
+
             self,
             dataframe: pd.DataFrame,
             dtype: type = np.float32, ):
@@ -24,8 +27,10 @@ class DFDataset(data.Dataset):
         self.__len = len(dataframe)
         self.__dtype = dtype
 
+        self.__dict = df_to_dict(self.__dataframe, self.__dtype)
+
     def __len__(self):
         return self.__len
 
     def __getitem__(self, index):
-        return self.__dataframe.iloc[index].values.astype(self.__dtype)
+        return self.__dict[index]

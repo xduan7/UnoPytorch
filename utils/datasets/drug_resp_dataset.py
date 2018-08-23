@@ -11,6 +11,8 @@ import os
 import errno
 import logging
 import multiprocessing
+import time
+
 from joblib import Parallel, delayed
 
 import numpy as np
@@ -18,6 +20,7 @@ import pandas as pd
 import torch.utils.data as data
 from sklearn.model_selection import train_test_split
 
+from utils.miscellaneous.dataframe_to_dict import df_to_dict
 from utils.miscellaneous.file_downloading import download_files
 from utils.miscellaneous.dataframe_scaling import scale_dataframe
 from utils.miscellaneous.label_encoding import encode_label_to_int, \
@@ -170,6 +173,13 @@ class DrugRespDataset(data.Dataset):
         # Train/validation split ##############################################
         self.__split_drug_resp()
 
+        # Converting dataframes to arrays and dict for rapid access ###########
+        self.__drug_resp_array = self.__drug_resp_df.values
+        self.__drug_feature_dict = df_to_dict(self.__drug_feature_df,
+                                              dtype=self.__float_dtype)
+        self.__rnaseq_dict = df_to_dict(self.__rnaseq_df,
+                                        dtype=self.__float_dtype)
+
         # Public attributes ###################################################
         self.drugs = self.__drug_resp_df['DRUG_ID'].unique().tolist()
         self.cells = self.__drug_resp_df['CELLNAME'].unique().tolist()
@@ -177,37 +187,36 @@ class DrugRespDataset(data.Dataset):
         self.drug_feature_dim = self.__drug_feature_df.shape[1]
         self.rnaseq_dim = self.__rnaseq_df.shape[1]
 
+        # Clear the dataframes ################################################
+        self.__drug_resp_df = None
+        self.__drug_feature_df = None
+        self.__rnaseq_df = None
+
         # Dataset summary #####################################################
         if summary:
             print('=' * 80)
             print(('Training' if self.training else 'Validation')
                   + ' Drug Response Dataset Summary (Data Source: %6s):'
                   % self.data_source)
-            print('\t%i Drug Response Records .' % len(self.__drug_resp_df))
+            print('\t%i Drug Response Records .' % len(self.__drug_resp_array))
             print('\t%i Unique Drugs (feature dim: %4i).'
                   % (len(self.drugs), self.drug_feature_dim))
             print('\t%i Unique Cell Lines (feature dim: %4i).'
                   % (len(self.cells), self.rnaseq_dim))
             print('=' * 80)
 
-    def get_drug_df(self):
-        return self.__drug_feature_df
-
-    def get_cell_df(self):
-        return self.__rnaseq_df
-
     def __len__(self):
         return self.num_records
 
     def __getitem__(self, index):
 
-        drug_resp = self.__drug_resp_df.iloc[index].tolist()
-        drug_feature = self.__drug_feature_df.loc[drug_resp[1]].values.\
-            astype(self.__output_dtype)
-        rnaseq = self.__rnaseq_df.loc[drug_resp[2]].values.\
-            astype(self.__output_dtype)
+        drug_resp = self.__drug_resp_array[index]
 
-        # source = np.array([drug_resp[0]], dtype=self.__output_dtype)
+        drug_feature = np.array(self.__drug_feature_dict[drug_resp[1]],
+                                dtype=self.__output_dtype)
+        rnaseq = np.array(self.__rnaseq_dict[drug_resp[2]],
+                          dtype=self.__output_dtype)
+
         concentration = np.array([drug_resp[3]], dtype=self.__output_dtype)
         growth = np.array([drug_resp[4]], dtype=self.__output_dtype)
 
@@ -830,3 +839,10 @@ if __name__ == '__main__':
         float_dtype=np.float32,
         growth_scaling='none',
         training=True)
+
+    num_operations = 10000
+    start_time = time.time()
+    for i in range(num_operations):
+        tmp = data_gen[i]
+    print('%i Get Operations Running Time: %.1f Seconds.'
+          % (num_operations, (time.time() - start_time)))

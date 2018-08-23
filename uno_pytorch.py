@@ -11,18 +11,13 @@
 import argparse
 import json
 import multiprocessing
-
-import os
-import random
 import time
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import r2_score
-from torch.optim import Adam, RMSprop, SGD
 from torch.optim.lr_scheduler import LambdaLR
 
 from networks.clf_net import ClfNet
@@ -33,7 +28,7 @@ from utils.miscellaneous.dataframe_scaling import SCALING_METHODS
 from utils.miscellaneous.encoder_initialization import get_encoders
 from utils.miscellaneous.label_encoding import get_labels
 from utils.miscellaneous.optimizer import get_optimizer
-
+from utils.miscellaneous.random_seeding import seed_random_state
 
 
 def train_resp(
@@ -116,7 +111,7 @@ def valid_resp(
             mae_list.append(mae)
             r2_list.append(r2)
 
-            print('\t\t[%-6s] \t MSE: %8.2f \t MAE: %8.2f \t R2: %+4.2f' %
+            print('\t\t%-6s \t MSE: %8.2f \t MAE: %8.2f \t R2: %+4.2f' %
                   (val_loader.dataset.data_source, mse, mae, r2))
 
     return mse_list, mae_list, r2_list
@@ -201,9 +196,9 @@ def valid_clf(
                 cl_type.view_as(pred_type)).sum().item()
 
     print('\tCell Line Classification: '
-          '\n\t\tCategory Accuracy: \t%5.2f%%; '
-          '\n\t\tSite Accuracy: \t%5.2f%%; '
-          '\n\t\tType Accuracy: \t%5.2f%%'
+          '\n\t\tCategory Accuracy: \t\t%5.2f%%; '
+          '\n\t\tSite Accuracy: \t\t\t%5.2f%%; '
+          '\n\t\tType Accuracy: \t\t\t%5.2f%%'
           % ((100. * correct_category / len(data_loader.dataset)),
              (100. * correct_site / len(data_loader.dataset)),
              (100. * correct_type / len(data_loader.dataset))))
@@ -288,7 +283,7 @@ def main():
     parser.add_argument('--clf_num_layers', type=int, default=1,
                         help='number of layers for sequence classification')
 
-    # Training parameters #####################################################
+    # Training and validation parameters ######################################
     # Drug response regression training parameters
     parser.add_argument('--resp_loss_func', type=str, default='mse',
                         help='loss function for drug response training',
@@ -298,6 +293,10 @@ def main():
                         choices=['SGD', 'RMSprop', 'Adam'])
     parser.add_argument('--resp_lr', type=float, default=1e-5,
                         help='learning rate for drug response training')
+
+    # Starting epoch for drug response validation
+    parser.add_argument('--resp_val_start_epoch', type=int, default=0,
+                        help='starting epoch for drug response validation')
 
     # Early stopping based on R2 score of drug response prediction
     parser.add_argument('--early_stop_patience', type=int, default=5,
@@ -329,6 +328,8 @@ def main():
     parser.add_argument('--precision', type=str, default='full',
                         help='neural network and dataset precision',
                         choices=['full', 'half', ])
+    parser.add_argument('--multi_gpu', action='store_true', default=False,
+                        help='enables multiple GPU process')
     parser.add_argument('--no_cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--rand_state', type=int, default=0,
@@ -337,22 +338,17 @@ def main():
     args = parser.parse_args()
     print('Training Arguments:\n' + json.dumps(vars(args), indent=4))
 
-    # Setting up random seed for reproducible results
-    torch.backends.cudnn.deterministic = True
-    random.seed(args.rand_state)
-    np.random.seed(args.rand_state)
-    torch.manual_seed(args.rand_state)
-    torch.cuda.manual_seed_all(args.rand_state)
+    # Setting up random seed for reproducible and deterministic results
+    seed_random_state(args.rand_state)
 
     # Computation device config (cuda or cpu)
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device('cuda' if use_cuda else 'cpu')
-    num_workers = multiprocessing.cpu_count()
 
     # Data loaders for training/validation ####################################
     dataloader_kwargs = {
         'shuffle': 'True',
-        'num_workers': num_workers if use_cuda else 0,
+        'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
         'pin_memory': True if use_cuda else False}
 
     # Drug response dataloaders for training/validation
@@ -415,7 +411,7 @@ def main():
     rna_seq_val_loader = torch.utils.data.DataLoader(
         RNASeqDataset(training=False,
                       **rna_seq_dataset_kwargs),
-        batch_size=args.trn_batch_size,
+        batch_size=args.val_batch_size,
         **dataloader_kwargs)
 
     # Constructing and initializing neural networks ###########################
@@ -479,9 +475,17 @@ def main():
         **clf_net_kwargs).to(device)
 
     # Multi-GPU and precision settings
-    for net in [resp_net, category_clf_net, site_clf_net, type_clf_net]:
-        net = net.half() if args.precision == 'half' else net
-        net = nn.DataParallel(net)
+    if args.precision == 'half':
+        resp_net = resp_net.half()
+        category_clf_net = category_clf_net.half()
+        site_clf_net = site_clf_net.half()
+        type_clf_net = type_clf_net.half()
+
+    if args.multi_gpu:
+        resp_net = nn.DataParallel(resp_net)
+        category_clf_net = nn.DataParallel(category_clf_net)
+        site_clf_net = nn.DataParallel(site_clf_net)
+        type_clf_net = nn.DataParallel(type_clf_net)
 
     # Optimizers, learning rate decay, and miscellaneous ######################
     resp_opt = get_optimizer(opt_type=args.resp_opt,
@@ -518,7 +522,7 @@ def main():
         if loader.dataset.data_source == args.trn_src:
             val_index = idx
 
-    for epoch in range(args.max_num_epochs):
+    for epoch in range(1, args.max_num_epochs + 1):
 
         print('=' * 80 + '\nTraining Epoch %3i:' % epoch)
         epoch_start_time = time.time()
@@ -552,25 +556,27 @@ def main():
                   data_loader=rna_seq_val_loader,)
 
         # Validating drug response regressor
-        mse, mae, r2 = valid_resp(device=device,
-                                  resp_net=resp_net,
-                                  data_loaders=drug_resp_val_loaders)
+        if epoch >= args.resp_val_start_epoch:
+            mse, mae, r2 = valid_resp(device=device,
+                                      resp_net=resp_net,
+                                      data_loaders=drug_resp_val_loaders)
 
-        # Save the validation results in nested list
-        val_mse.append(mse)
-        val_mae.append(mae)
-        val_r2.append(r2)
+            # Save the validation results in nested list
+            val_mse.append(mse)
+            val_mae.append(mae)
+            val_r2.append(r2)
 
-        # Record the best R2 score (same data source) and check for stopping
-        if r2[val_index] > best_r2:
-            patience = 0
-            best_r2 = r2[val_index]
-        else:
-            patience += 1
-        if patience >= args.early_stop_patience:
-            print('Validation results does not improve for %d epochs ... '
-                  'invoking early stopping.' % patience)
-            break
+            # Record the best R2 score (same data source)
+            # and check for early stopping if no improvement for epochs
+            if r2[val_index] > best_r2:
+                patience = 0
+                best_r2 = r2[val_index]
+            else:
+                patience += 1
+            if patience >= args.early_stop_patience:
+                print('Validation results does not improve for %d epochs ... '
+                      'invoking early stopping.' % patience)
+                break
 
         print('Epoch Running Time: %.1f Seconds.'
               % (time.time() - epoch_start_time))
@@ -595,7 +601,7 @@ def main():
         print('\t%6s \t Best R2 Score: %+6.4f '
               '(Epoch = %3d, MSE = %8.2f, MAE = %8.2f)'
               % (data_source, best_r2_scores[index],
-                 best_epochs[index] + 1,
+                 best_epochs[index] + args.resp_val_start_epoch + 1,
                  val_mse[best_epochs[index], index],
                  val_mae[best_epochs[index], index]))
 
