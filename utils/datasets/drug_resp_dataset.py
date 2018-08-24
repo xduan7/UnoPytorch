@@ -210,6 +210,9 @@ class DrugRespDataset(data.Dataset):
 
     def __getitem__(self, index):
 
+        # TODO: use try for data retrieval
+        # Multiprocess dataloaders might race for the same chunk of data.
+
         drug_resp = self.__drug_resp_array[index]
 
         drug_feature = np.array(self.__drug_feature_dict[drug_resp[1]],

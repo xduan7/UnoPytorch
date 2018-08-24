@@ -37,7 +37,11 @@ if __name__ == '__main__':
          'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
     ]
 
-    for rnaseq_feature in ['source_scale', 'combat']:
+    # for rnaseq_feature in ['source_scale', 'combat']:
+    rnaseq_feature = 'source_scale'
+
+    for resp_lr, resp_loss in zip(['4e-4', '1e-5'], ['l1', 'mse']):
+
         for param_dict in param_dict_list:
 
             # Try until the models are successfully trained
@@ -48,7 +52,8 @@ if __name__ == '__main__':
             now = datetime.datetime.now()
 
             # Save log with name = (training data source + time)
-            tee = Tee('./results/logs/%s_(%02d%02d_%02d%02d).txt'
+            tee = Tee('./results/logs/' + rnaseq_feature +
+                      '/%s_(%02d%02d_%02d%02d).txt'
                       % (param_dict['trn_src'],
                          now.month, now.day, now.hour, now.minute))
             sys.stdout = tee
@@ -68,7 +73,7 @@ if __name__ == '__main__':
                 '--nan_threshold', '0.0',
 
                 # Feature usage and partitioning settings
-                '--rnaseq_feature_usage', 'source_scale',
+                '--rnaseq_feature_usage', rnaseq_feature,
                 '--drug_feature_usage', 'both',
                 '--validation_size', '0.15',
                 # '--disjoint_drugs',
@@ -100,9 +105,9 @@ if __name__ == '__main__':
 
                 # Training and validation parameters ######################
                 # Drug response regression training parameters
-                '--resp_loss_func', 'mse',
+                '--resp_loss_func', resp_loss,
                 '--resp_opt', 'SGD',
-                '--resp_lr', '1e-5',
+                '--resp_lr', resp_lr,
 
                 # Starting epoch for drug response validation
                 '--resp_val_start_epoch', '0',
