@@ -210,20 +210,60 @@ class DrugRespDataset(data.Dataset):
 
     def __getitem__(self, index):
 
-        # TODO: use try for data retrieval
-        # Multiprocess dataloaders might race for the same chunk of data.
-
+        # Note that this chunk of code does not work with pytorch 4.1 for
+        # multiprocessing reasons. Chances are that during the run, one of
+        # the workers might hang and prevents the training from moving on
         drug_resp = self.__drug_resp_array[index]
 
-        drug_feature = np.array(self.__drug_feature_dict[drug_resp[1]],
-                                dtype=self.__output_dtype)
-        rnaseq = np.array(self.__rnaseq_dict[drug_resp[2]],
-                          dtype=self.__output_dtype)
-
-        concentration = np.array([drug_resp[3]], dtype=self.__output_dtype)
-        growth = np.array([drug_resp[4]], dtype=self.__output_dtype)
+        drug_feature = np.array(
+            self.__drug_feature_dict[drug_resp[1]],
+            dtype=self.__output_dtype)
+        rnaseq = np.array(
+            self.__rnaseq_dict[drug_resp[2]],
+            dtype=self.__output_dtype)
+        concentration = np.array(
+            [drug_resp[3]],
+            dtype=self.__output_dtype)
+        growth = np.array(
+            [drug_resp[4]],
+            dtype=self.__output_dtype)
 
         return rnaseq, drug_feature, concentration, growth
+
+        # The following code with timeout does not prevent the hanging from
+        # happening.
+
+        # # Multiprocess dataloaders might race for the same chunk of data.
+        # num_trail = 0
+        # while True:
+        #     try:
+        #         with Timeout(1):
+        #             drug_resp = self.__drug_resp_array[index]
+        #
+        #             drug_feature = np.array(
+        #                 self.__drug_feature_dict[drug_resp[1]],
+        #                 dtype=self.__output_dtype)
+        #             rnaseq = np.array(
+        #                 self.__rnaseq_dict[drug_resp[2]],
+        #                 dtype=self.__output_dtype)
+        #             concentration = np.array(
+        #                 [drug_resp[3]],
+        #                 dtype=self.__output_dtype)
+        #             growth = np.array(
+        #                 [drug_resp[4]],
+        #                 dtype=self.__output_dtype)
+        #
+        #         # Return the data upon successful retrieval within time limit
+        #         return rnaseq, drug_feature, concentration, growth
+        #
+        #     # If timeout, print error info and repeat
+        #     except Timeout:
+        #         print('Get item timeout %i' % num_trail)
+        #         num_trail += 1
+        #         pass
+        #
+        #     # Try data retrieval a small amount of time later
+        #     time.sleep(10)
 
     def __process_drug_resp(self):
         """self.__process_drug_resp()

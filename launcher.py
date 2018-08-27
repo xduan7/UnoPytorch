@@ -40,7 +40,7 @@ if __name__ == '__main__':
     # for rnaseq_feature in ['source_scale', 'combat']:
     rnaseq_feature = 'source_scale'
 
-    for resp_lr, resp_loss in zip(['4e-4', '1e-5'], ['l1', 'mse']):
+    for resp_lr, resp_loss in zip(['1e-5'], ['mse']):
 
         for param_dict in param_dict_list:
 
@@ -117,7 +117,7 @@ if __name__ == '__main__':
 
                 # RNA sequence classification training parameters
                 '--clf_opt', 'SGD',
-                '--clf_lr', '1e-3',
+                '--clf_lr', '0.0',
 
                 # Global/shared training parameters
                 '--decay_factor', '0.95',
