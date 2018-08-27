@@ -348,8 +348,8 @@ def main():
     # Data loaders for training/validation ####################################
     dataloader_kwargs = {
         'shuffle': 'True',
-        'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
-        # 'num_workers': 0,
+        # 'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
+        'num_workers': 0,
         'pin_memory': True if use_cuda else False
     }
 
