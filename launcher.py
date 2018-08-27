@@ -117,7 +117,7 @@ if __name__ == '__main__':
 
                 # RNA sequence classification training parameters
                 '--clf_opt', 'SGD',
-                '--clf_lr', '0.0',
+                '--clf_lr', '1e-3',
 
                 # Global/shared training parameters
                 '--decay_factor', '0.95',

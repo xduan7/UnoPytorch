@@ -20,7 +20,7 @@ urllib3 1.23
 
 
 The default network structure is shown below: 
-<img src="https://github.com/xduan7/UnoPytorch/blob/master/images/default_network.jpeg" width="100%">
+<img src="https://github.com/xduan7/UnoPytorch/blob/master/images/default_network.jpg" width="100%">
 
 An example of the program output for training on NCI60 and valdiation on all other data sources is shown below:
 ```
@@ -97,6 +97,6 @@ Training Epoch   2:
 ```
 
 For default hyper parameters, the transfer learning matrix results are shown below:
-<img src="https://github.com/xduan7/UnoPytorch/blob/master/images/default_results.jpeg" width="100%">
+<img src="https://github.com/xduan7/UnoPytorch/blob/master/images/default_results.jpg" width="100%">
 
 Note that the green cells represents R2 score of higher than 0.1, red cells are R2 scores lower than -0.1 and yellows are for all the values in between. 
