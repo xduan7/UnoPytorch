@@ -10,7 +10,6 @@
 
 import argparse
 import json
-import multiprocessing
 import time
 
 import numpy as np

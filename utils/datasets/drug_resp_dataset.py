@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 
 
 class DrugRespDataset(data.Dataset):
-    """Dataset class for drug response learning
+    """Dataset class for drug response learning.
 
     This class implements a PyTorch Dataset class made for drug response
     learning. Using enumerate() or any other methods that utilize
@@ -74,9 +74,9 @@ class DrugRespDataset(data.Dataset):
     Note that all items in feature and the target are in python float type.
 
     Attributes:
-        training (bool): indicator of training/validation dataset
-        drugs (list): list of all the drugs in the dataset
-        cells (list): list of all the cells in the dataset
+        training (bool): indicator of training/validation dataset.
+        drugs (list): list of all the drugs in the dataset.
+        cells (list): list of all the cells in the dataset.
         data_source (str): source of the data being used.
         num_records (int): number of drug response records.
         drug_feature_dim (int): dimensionality of drug feature.
@@ -109,6 +109,57 @@ class DrugRespDataset(data.Dataset):
             validation_size: float = 0.2,
             disjoint_drugs: bool = True,
             disjoint_cells: bool = True, ):
+        """dataset = DrugRespDataset('./data/', 'NCI60', True)
+
+        Construct a new drug response dataset based on the parameters
+        provided. The process includes:
+            * Downloading source data files;
+            * Pre-processing (scaling, trimming, etc.);
+            * Public attributes and other preparations.
+
+        Args:
+            data_folder (str): path to data folder.
+            data_source (str): data source for drug response, must be one of
+                'NCI60', 'CTRP', 'GDSC', 'CCLE', and 'gCSI'.
+            training (bool): indicator for training.
+            rand_state (int): random seed used for training/validation split
+                and other processes that requires randomness.
+            summary (bool): set True for printing dataset summary.
+
+
+            int_dtype (type): integer dtype for data storage in RAM and disk.
+            float_dtype (type): float dtype for data storage in RAM and disk.
+            output_dtype (type): output dtype for neural network.
+
+
+            growth_scaling (str): scaling method for drug response growth.
+                Choose between 'none', 'std', and 'minmax'.
+            descriptor_scaling (str): scaling method for drug descriptor.
+                Choose between 'none', 'std', and 'minmax'.
+            rnaseq_scaling (str): scaling method for RNA sequence (LINCS1K).
+                Choose between 'none', 'std', and 'minmax'.
+            nan_threshold (float): NaN threshold for drug descriptor. If a
+                column/feature or row/drug contains exceeding amount of NaN
+                comparing to the threshold, the feature/drug will be dropped.
+
+
+            rnaseq_feature_usage (str): RNA sequence usage. Choose between
+                'combat', which is batch-effect-removed version of RNA
+                sequence, or 'source_scale'.
+            drug_feature_usage (str): drug feature usage. Choose between
+                'fingerprint', 'descriptor', or 'both'.
+            validation_size (float): portion of validation data out of all
+                data samples. Note that this is not strictly the portion
+                size. During the split, we will pick a percentage of
+                drugs/cells and take the combination. The calculation will
+                make sure that the expected validation size is accurate,
+                but not strictly the case for a single random seed. Please
+                refer to __split_drug_resp() for more details.
+            disjoint_drugs (bool): indicator for disjoint drugs between
+                training and validation dataset.
+            disjoint_cells: indicator for disjoint cell lines between
+                training and validation dataset.
+        """
 
         # Initialization ######################################################
         self.__data_folder = data_folder
@@ -301,7 +352,8 @@ class DrugRespDataset(data.Dataset):
         # Encode data sources into numeric
         data_src_dict_path = os.path.join(
             self.__processed_data_folder, 'data_src_dict.json')
-        drug_resp_df['SOURCE'] = encode_label_to_int(
+        print('there')
+        drug_resp_df['SOURCE'], _ = encode_label_to_int(
             drug_resp_df['SOURCE'], data_src_dict_path)
 
         # Scaling the growth
