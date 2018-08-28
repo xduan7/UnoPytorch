@@ -23,10 +23,10 @@ import pandas as pd
 import torch.utils.data as data
 from sklearn.model_selection import train_test_split
 
-from utils.miscellaneous.dataframe_to_dict import df_to_dict
+from utils.data_processing.dataframe_to_dict import df_to_dict
 from utils.miscellaneous.file_downloading import download_files
-from utils.miscellaneous.dataframe_scaling import scale_dataframe
-from utils.miscellaneous.label_encoding import encode_label_to_int, \
+from utils.data_processing.dataframe_scaling import scale_dataframe
+from utils.data_processing.label_encoding import encode_label_to_int, \
     get_label_encoding_dict
 
 

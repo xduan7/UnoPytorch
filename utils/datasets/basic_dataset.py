@@ -11,8 +11,7 @@
 import numpy as np
 import pandas as pd
 import torch.utils.data as data
-
-from utils.miscellaneous.dataframe_to_dict import df_to_dict
+from utils.data_processing.dataframe_to_dict import df_to_dict
 
 
 class DataFrameDataset(data.Dataset):

@@ -25,6 +25,41 @@ from utils.miscellaneous.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
 
 
+
+
+def get_autoencoder(
+        model_path: str,
+        data_path: str,
+
+
+        layer_dim: int,
+        latent_dim: int,
+        num_layers: int,
+
+        ae_loss_func: str = 'mse',
+        ae_opt: str = 'sgd',
+        ae_lr: float = 1e-3,
+
+        early_stop_patience: int = 10,
+
+        decay_factor: float = 1.00,
+        trn_batch_size: int = 32,
+        val_batch_size: int = 256,
+        max_num_epochs: int = 100,
+
+        device: torch.device = torch.device(type='cuda'),
+        rand_state: int = 0, ):
+
+    # Load dataframe and training/validation split #############
+
+    # Start training and until converge ########################
+
+    # Store the best AE and return the best one ################
+    pass
+
+
+
+
 def encoder_init(
         ae_int: bool,
         model_path: str,
@@ -96,6 +131,8 @@ def encoder_init(
                         networks=net,
                         learning_rate=learning_rate)
     lr_decay = LambdaLR(opt, lr_lambda=lambda e: decay_factor ** e)
+
+
     loss_func = F.l1_loss if loss_func == 'l1' else F.mse_loss
 
     # Training and validation loop

@@ -23,9 +23,9 @@ from networks.clf_net import ClfNet
 from networks.resp_net import RespNet
 from utils.datasets.drug_resp_dataset import DrugRespDataset
 from utils.datasets.rna_seq_dataset import RNASeqDataset
-from utils.miscellaneous.dataframe_scaling import SCALING_METHODS
+from utils.data_processing.dataframe_scaling import SCALING_METHODS
 from utils.miscellaneous.encoder_initialization import get_encoders
-from utils.miscellaneous.label_encoding import get_labels
+from utils.data_processing.label_encoding import get_labels
 from utils.miscellaneous.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
 
