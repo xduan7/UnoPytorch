@@ -4,8 +4,11 @@
     Email:              xduan7@uchicago.edu
     Date:               8/13/18
     Python Version:     3.6.6
-    File Description:   
+    File Description:
+        This file implements the dataset for drug response.
 
+    TODO:
+    * optimizing __getitem__ method for multiprocess data retrieval.
 """
 import os
 import errno
@@ -260,6 +263,21 @@ class DrugRespDataset(data.Dataset):
         return self.num_records
 
     def __getitem__(self, index):
+        """rnaseq, drug_feature, concentration, growth = dataset[0]
+
+        This function fetches a single sample of drug response data along
+        with the corresponding drug features and RNA sequence.
+
+        Note that all the returned values are in ndarray format with the
+        type specified during dataset initialization.
+
+        Args:
+            index (int): index for drug response data.
+
+        Returns:
+            tuple: a tuple of np.ndarray, with RNA sequence data,
+                drug features, concentration, and growth.
+        """
 
         # Note that this chunk of code does not work with pytorch 4.1 for
         # multiprocessing reasons. Chances are that during the run, one of
@@ -272,60 +290,22 @@ class DrugRespDataset(data.Dataset):
         rnaseq = np.array(
             self.__rnaseq_dict[drug_resp[2]],
             dtype=self.__output_dtype)
-        concentration = np.array(
-            [drug_resp[3]],
-            dtype=self.__output_dtype)
-        growth = np.array(
-            [drug_resp[4]],
-            dtype=self.__output_dtype)
+
+        concentration = np.array([drug_resp[3]], dtype=self.__output_dtype)
+        growth = np.array([drug_resp[4]], dtype=self.__output_dtype)
 
         return rnaseq, drug_feature, concentration, growth
-
-        # The following code with timeout does not prevent the hanging from
-        # happening.
-
-        # # Multiprocess dataloaders might race for the same chunk of data.
-        # num_trail = 0
-        # while True:
-        #     try:
-        #         with Timeout(1):
-        #             drug_resp = self.__drug_resp_array[index]
-        #
-        #             drug_feature = np.array(
-        #                 self.__drug_feature_dict[drug_resp[1]],
-        #                 dtype=self.__output_dtype)
-        #             rnaseq = np.array(
-        #                 self.__rnaseq_dict[drug_resp[2]],
-        #                 dtype=self.__output_dtype)
-        #             concentration = np.array(
-        #                 [drug_resp[3]],
-        #                 dtype=self.__output_dtype)
-        #             growth = np.array(
-        #                 [drug_resp[4]],
-        #                 dtype=self.__output_dtype)
-        #
-        #         # Return the data upon successful retrieval within time limit
-        #         return rnaseq, drug_feature, concentration, growth
-        #
-        #     # If timeout, print error info and repeat
-        #     except Timeout:
-        #         print('Get item timeout %i' % num_trail)
-        #         num_trail += 1
-        #         pass
-        #
-        #     # Try data retrieval a small amount of time later
-        #     time.sleep(10)
 
     def __process_drug_resp(self):
         """self.__process_drug_resp()
 
         This function reads from the raw drug response file and process it
         into dataframe as return.
-        During the processing, the data sources will be converted to numeric
-        and the the growth might be scaled accordingly.
+        During the processing, the data sources will be converted to
+        numeric and the the growth might be scaled accordingly.
 
-        :return:
-            (pd.dataframe): (un-trimmed) drug response dataframe.
+        Returns:
+            pd.DataFrame: whole drug response dataframe from source file.
         """
 
         logger.info('Processing drug response dataframe ... ')
@@ -376,8 +356,8 @@ class DrugRespDataset(data.Dataset):
         This function reads from the raw drug feature files (fingerprint
         and/or descriptor) and process it into dataframe as return.
 
-        :return:
-            (pd.dataframe): (un-trimmed) drug feature dataframe.
+        Returns:
+            pd.DataFrame: whole drug feature dataframe from source file.
         """
 
         logger.info('Processing drug feature dataframe(s) ... ')
@@ -402,15 +382,8 @@ class DrugRespDataset(data.Dataset):
         This function reads from the raw drug fingerprint file and process it
         into dataframe as return.
 
-        :return:
-            (pd.dataframe): (un-trimmed) drug fingerprint dataframe.
-        """
-        """self._process_drug_fingerprint()
-
-        Process drug fingerprint data file and save the dataframe.
-
         Returns:
-            (pd.dataframe): combined fingerprint dataframe.
+            pd.DataFrame: whole drug fingerprint dataframe.
         """
 
         logger.info('Processing drug fingerprint dataframe ... ')
@@ -457,8 +430,8 @@ class DrugRespDataset(data.Dataset):
         exceeding percentage of NaN values will be dropped. And the feature
         will be scaled accordingly.
 
-        :return:
-            (pd.dataframe): (un-trimmed) drug descriptor dataframe.
+        Returns:
+            pd.DataFrame: whole drug descriptor dataframe.
         """
 
         logger.info('Processing drug descriptor dataframe ... ')
@@ -516,8 +489,8 @@ class DrugRespDataset(data.Dataset):
         This function reads from cell line RNA sequence file and process it
         into dataframe as return.
 
-        :return:
-            (pd.dataframe): (un-trimmed) RNA sequence dataframe.
+        Returns:
+            pd.DataFrame: whole RNA sequence dataframe.
         """
 
         logger.info('Processing RNA sequence dataframe ... ')
@@ -558,15 +531,18 @@ class DrugRespDataset(data.Dataset):
     def __trim_dataframes(self, trim_data_source: bool=True):
         """self.__trim_dataframes(trim_data_source=True)
 
-        This function trims three dataframes to make sure that they share
-        the same list of drugs and cell lines, in order to avoid wasting
-        memory and processing time.
-        If trim_data_source is set to True, the function will only take the
-        drug response records from such data source, which should be given
-        during initialization.
+        This function trims three dataframes to make sure that drug response
+        dataframe, RNA sequence dataframe, and drug feature dataframe are
+        sharing the same list of cell lines and drugs.
 
+        Args:
+            trim_data_source (bool): indicator on trimming data source. If
+                True, function will limit self.drug_resp_df to a designated
+                data source, which is given during initialization. Then
+                perform the trimming.
 
-        :param trim_data_source (bool): indicator for data source limitation
+        Returns:
+            None
         """
 
         logger.info('Trimming dataframes ... ')
@@ -614,12 +590,30 @@ class DrugRespDataset(data.Dataset):
         return
 
     def __analyze_drugs(self):
-        """
-        TODO
+        """drug_analysis_df = self.__analyze_drugs()
 
+        This function analyze drugs based their average growth and
+        dose-to-growth correlation.
 
+        The function will first calculate combo statistics if it does not
+        exist in the /data/processed/ folder.
+        For  each (drug + cell line) combo, it calculates average growth and
+        the correlation, then store the statistics in disk for future usage.
 
-        :return:
+        After obtaining the combo dataframe, the function will calculate the
+        same stats w.r.t. each drug if the data does not exist in the
+        /data/processed/ folder.
+
+        Then the single drug stats will be used to divide all the drugs into
+        4 different categories:
+            * high growth, high correlation
+            * high growth, low correlation
+            * low growth, high correlation
+            * low growth, low correlation
+
+        Returns:
+            pd.DataFrame: dataframe for all the drugs, with two boolean
+                columns ['HIGH_GROWTH', 'HIGH_CORR']
         """
 
         logger.info('Analyzing drug + cell combos statistics ... ')
@@ -630,15 +624,17 @@ class DrugRespDataset(data.Dataset):
         combo_df_path = os.path.join(self.__processed_data_folder,
                                      combo_df_filename)
 
-        columns = ['COMBO', 'DRUG_ID', 'CELLNAME',
-                   'NUM_REC', 'AVG', 'VAR', 'CORR', ]
+        # Columns for drug+cell combo statistic dataframe
+        combo_columns = ['COMBO', 'DRUG_ID', 'CELLNAME',
+                         'NUM_REC', 'AVG', 'VAR', 'CORR', ]
 
         if os.path.exists(combo_df_path):
             logger.debug('Loading existing drug + cell combo dataframe ... ')
             combo_df = pd.read_pickle(combo_df_path)
         else:
-            logger.debug('Constructing drug + cell combo dataframe ... ')
-            combo_df = pd.DataFrame(columns=columns)
+            logger.warning('Constructing drug + cell combo dataframe ... '
+                           'this might take a few hours ...')
+            combo_df = pd.DataFrame(columns=combo_columns)
 
         # Get all the combos from drug reps dataframe
         tmp_drug_resp_df = self.__drug_resp_df.copy(deep=True)
@@ -655,6 +651,7 @@ class DrugRespDataset(data.Dataset):
                      % (len(total_combos - curr_combos),
                         len(total_combos)))
 
+        # Construct a local function for multiprocessing the drug+cell combo
         def process_combo(combo: str, single_combo_df: pd.DataFrame):
 
             drug, cell = combo.split('+')
@@ -677,8 +674,9 @@ class DrugRespDataset(data.Dataset):
             for combo in (total_combos - curr_combos))
 
         # Append the constructed table for combos
-        combo_df = combo_df.append(pd.DataFrame(combo_list, columns=columns),
-                                   ignore_index=True)
+        combo_df = combo_df.append(
+            pd.DataFrame(combo_list, columns=combo_columns),
+            ignore_index=True)
 
         if len(total_combos - curr_combos) != 0:
 
@@ -695,6 +693,10 @@ class DrugRespDataset(data.Dataset):
                 os.remove(combo_df_path)
             combo_df.to_pickle(combo_df_path)
 
+        #######################################################################
+        # After obtaining all the drug+cell combo data, move on to process
+        # statistics (average growth, average dose-to-growth correlation)
+        # for single drugs.
         logger.info('Analyzing drug statistics ... ')
 
         total_drugs = set(combo_df['DRUG_ID'].unique())
@@ -704,13 +706,15 @@ class DrugRespDataset(data.Dataset):
         drug_df_path = os.path.join(self.__processed_data_folder,
                                     drug_df_filename)
 
+        drug_columns = ['DRUG_ID', 'NUM_CL', 'NUM_REC', 'AVG', 'CORR', ]
+
         if os.path.exists(drug_df_path):
             logger.debug('Loading existing drug statistics dataframe ... ')
             drug_df = pd.read_pickle(drug_df_path)
         else:
             logger.debug('Constructing drug statistics dataframe ... ')
             drug_df = pd.DataFrame(
-                columns=['DRUG_ID', 'NUM_CL', 'NUM_REC', 'AVG', 'CORR', ])
+                columns=drug_columns)
 
         # If there are existing combos not in the current dataframe
         # Iterate through and fill them in
@@ -743,9 +747,7 @@ class DrugRespDataset(data.Dataset):
 
         # Append the constructed table for combos
         drug_df = drug_df.append(
-            pd.DataFrame(drug_list,
-                         columns=['DRUG_ID', 'NUM_CL', 'NUM_REC',
-                                  'AVG', 'CORR', ]),
+            pd.DataFrame(drug_list, columns=drug_columns),
             ignore_index=True)
 
         if len(total_drugs - curr_drugs) != 0:
@@ -762,7 +764,13 @@ class DrugRespDataset(data.Dataset):
                 os.remove(drug_df_path)
             drug_df.to_pickle(drug_df_path)
 
-        logger.info('Classifying drugs ... ')
+        # Classifying drugs based their average growth and dose-to-growth
+        # correlation. There will be four categories of drugs in total:
+        #     * high growth, high correlation
+        #     * high growth, low correlation
+        #     * low growth, high correlation
+        #     * low growth, low correlation
+        logger.info('Classifying drugs for stratified split ... ')
 
         drugs = drug_df['DRUG_ID'].values
         avg = drug_df['AVG'].values
@@ -774,15 +782,24 @@ class DrugRespDataset(data.Dataset):
         drug_analysis_array = \
             np.array([drugs, drug_growth, drug_corr]).transpose()
 
+        # The returned dataframe will have two columns of boolean values,
+        # indicating four different categories.
         drug_analysis_df = pd.DataFrame(
             drug_analysis_array,
             columns=['DRUG_ID', 'HIGH_GROWTH', 'HIGH_CORR'])
-
         drug_analysis_df.set_index('DRUG_ID', inplace=True)
 
         return drug_analysis_df
 
     def __load_cl_metadata(self):
+        """cl_meta_df = self.__load_cl_metadata()
+
+        This function loads the cell line metadata directly from raw file.
+
+        Returns:
+            pd.DataFrame: cell line meta data with columns
+                ['data_src', 'site', 'type', 'category', 'description']
+        """
 
         cl_meta_df = pd.read_csv(
             os.path.join(self.__raw_data_folder, CL_METADATA),
@@ -805,6 +822,32 @@ class DrugRespDataset(data.Dataset):
         return cl_meta_df
 
     def __split_drug_resp(self):
+        """self.__split_drug_resp()
+
+        This function split training and validation drug response data based
+        on the splitting specifications (disjoint drugs and/or disjoint cells).
+
+        Upon the call, the function summarize all the drugs and cells. If
+        disjoint (drugs/cells) is set to True, then it will split the list
+        (of drugs/cells) into training/validation (drugs/cells).
+
+        Otherwise, if disjoint (drugs/cells) is set to False, we make sure
+        that the training/validation set contains the same (drugs/cells).
+
+        Then it trims all three dataframes to make sure all the data in RAM is
+        relevant for training/validation
+
+        Note that the validation size is not guaranteed during splitting.
+        What the function really splits by the ratio is the list of
+        drugs/cell lines. Also, if both drugs and cell lines are marked
+        disjoint, the function will split drug and cell lists with ratio of
+        (validation_size ** 0.5).
+
+        Warnings will be raise if the validation ratio is off too much.
+
+        Returns:
+            None
+        """
 
         drug_analysis_df = self.__analyze_drugs()
         # cl_meta_df = self.__load_cl_metadata()
@@ -908,13 +951,14 @@ class DrugRespDataset(data.Dataset):
             validation_drug_resp_df = validation_drug_resp_df.loc[
                 validation_drug_resp_df['DRUG_ID'].isin(common_drugs)]
 
-        validation_ratio = \
-            len(validation_drug_resp_df) / len(training_drug_resp_df)
-        if validation_ratio < 0.15 or validation_ratio > 0.3:
-            logger.warning('Suspicious validation/training ratio: %.2f' %
+        validation_ratio = len(validation_drug_resp_df) \
+            / (len(training_drug_resp_df) + len(validation_drug_resp_df))
+        if validation_ratio < self.__validation_size * 0.8 \
+                or validation_ratio > self.__validation_size * 1.2:
+            logger.warning('Bad validation ratio: %.2f' %
                            validation_ratio)
 
-        # return training_drug_resp_df or validation_drug_resp_df
+        # Keep only training_drug_resp_df or validation_drug_resp_df
         self.__drug_resp_df = training_drug_resp_df if self.training \
             else validation_drug_resp_df
         self.__trim_dataframes(trim_data_source=False)

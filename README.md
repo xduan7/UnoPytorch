@@ -24,7 +24,7 @@ The default network structure is shown below:
 
 An example of the program output for training on NCI60 and valdiation on all other data sources is shown below:
 ```
-python ./UnoPytorch/launcher.py
+python3.6 ~/Projects/UnoPytorch/launcher.py
 Training Arguments:
 {
     "trn_src": "NCI60",
