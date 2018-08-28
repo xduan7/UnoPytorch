@@ -1,5 +1,5 @@
 """ 
-    File Name:          UnoPytorch/encoder_initialization.py
+    File Name:          UnoPytorch/encoder_init.py
     Author:             Xiaotian Duan (xduan7)
     Email:              xduan7@uchicago.edu
     Date:               8/16/18
@@ -16,45 +16,84 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
-from torch.optim import Adam, RMSprop, SGD
 from torch.optim.lr_scheduler import LambdaLR
 
 from networks.encoder_net import EncoderNet
 from utils.datasets.basic_dataset import DataFrameDataset
-from utils.miscellaneous.optimizer import get_optimizer
+from utils.network_config.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
-
-
 
 
 def get_autoencoder(
         model_path: str,
-        data_path: str,
+        df_path: str,
 
-
+        # Autoencoder network configuration
         layer_dim: int,
         latent_dim: int,
         num_layers: int,
 
+        # Major training parameters
         ae_loss_func: str = 'mse',
         ae_opt: str = 'sgd',
         ae_lr: float = 1e-3,
 
-        early_stop_patience: int = 10,
-
-        decay_factor: float = 1.00,
+        # Unimportant training parameters
+        validation_ratio: float = 0.2,
         trn_batch_size: int = 32,
         val_batch_size: int = 256,
         max_num_epochs: int = 100,
+        early_stop_patience: int = 10,
+        decay_factor: float = 1.00,
 
+        # Miscellaneous
         device: torch.device = torch.device(type='cuda'),
+        verbose: bool = True,
         rand_state: int = 0, ):
 
-    # Load dataframe and training/validation split #############
+    # Check if the model exists, load and return
+    if os.path.exists(model_path):
+        return torch.load(model_path)
 
-    # Start training and until converge ########################
+    if verbose:
+        print('Constructing autoencoders ... ')
 
-    # Store the best AE and return the best one ################
+    # Load dataframe, split and construct dataloaders #########################
+    trn_df, val_df = train_test_split(pd.read_pickle(df_path),
+                                      test_size=validation_ratio,
+                                      random_state=rand_state,
+                                      shuffle=True)
+    dataloader_kwargs = {
+        'shuffle': 'True',
+        # 'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
+        'num_workers': 0,
+        'pin_memory': True if device == torch.device('cuda') else False
+    }
+
+    trn_dataloader = torch.utils.data.DataLoader(
+        DataFrameDataset(trn_df),
+        batch_size=trn_batch_size,
+        **dataloader_kwargs)
+
+    val_dataloader = torch.utils.data.DataLoader(
+        DataFrameDataset(val_df),
+        batch_size=val_batch_size,
+        **dataloader_kwargs)
+
+    # Start training and until converge #######################################
+    
+
+
+
+
+
+
+
+
+
+
+
+    # Store the best AE and return the best one ###############################
     pass
 
 
