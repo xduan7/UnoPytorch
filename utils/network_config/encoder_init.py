@@ -7,8 +7,8 @@
     File Description:   
 
 """
+import logging
 import copy
-import multiprocessing
 import os
 
 import numpy as np
@@ -17,210 +17,163 @@ import torch
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import LambdaLR
+from torch.utils.data import DataLoader
 
 from networks.encoder_net import EncoderNet
 from utils.datasets.basic_dataset import DataFrameDataset
 from utils.network_config.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
 
+logger = logging.getLogger(__name__)
 
-def get_autoencoder(
+
+def get_encoder(
         model_path: str,
-        df_path: str,
+        dataframe: pd.DataFrame,
 
         # Autoencoder network configuration
+        autoencoder_init: bool,
         layer_dim: int,
-        latent_dim: int,
         num_layers: int,
+        latent_dim: int,
 
         # Major training parameters
-        ae_loss_func: str = 'mse',
-        ae_opt: str = 'sgd',
-        ae_lr: float = 1e-3,
+        ae_loss_func: str,
+        ae_opt: str,
+        ae_lr: float,
+        lr_decay_factor: float,
+        max_num_epochs: int,
+        early_stop_patience: int,
 
-        # Unimportant training parameters
+        # Secondary training parameters
         validation_ratio: float = 0.2,
         trn_batch_size: int = 32,
-        val_batch_size: int = 256,
-        max_num_epochs: int = 100,
-        early_stop_patience: int = 10,
-        decay_factor: float = 1.00,
+        val_batch_size: int = 1024,
 
         # Miscellaneous
-        device: torch.device = torch.device(type='cuda'),
+        device: torch.device = torch.device('cuda'),
         verbose: bool = True,
         rand_state: int = 0, ):
+    """encoder = gene_encoder = get_gene_encoder(./models/', dataframe,
+           True, 1000, 3, 100, 'mse', 'sgd', 1e-3, 0.98, 100, 10)
+
+    This function constructs, initializes and returns a feature encoder for
+    the given dataframe.
+
+    When parameter autoencoder_init is set to False, it simply construct and
+    return an encoder with simple initialization (nn.init.xavier_normal_).
+
+    When autoencoder_init is set to True, the function will return the
+    encoder part of an autoencoder trained on the given data. It will first
+    check if the model file exists. If not, it will start training with
+    given training hyper-parameters.
+
+    Note that the saved model in disk contains the whole autoencoder (
+    encoder and decoder). But the function only returns the encoder.
+
+    """
+
+    # If autoencoder initialization is not required, return a plain encoder
+    if not autoencoder_init:
+        return EncoderNet(input_dim=dataframe.shape[1],
+                          layer_dim=layer_dim,
+                          num_layers=num_layers,
+                          latent_dim=latent_dim,
+                          autoencoder=False).to(device).encoder
 
     # Check if the model exists, load and return
     if os.path.exists(model_path):
-        return torch.load(model_path)
+        logger.debug('Loading existing autoencoder model from %s ...'
+                     % model_path)
+        return torch.load(model_path).encoder
 
-    if verbose:
-        print('Constructing autoencoders ... ')
+    logger.debug('Constructing autoencoder from dataframe ...')
+
+    # Setting up random seed for reproducible and deterministic results
+    seed_random_state(rand_state)
 
     # Load dataframe, split and construct dataloaders #########################
-    trn_df, val_df = train_test_split(pd.read_pickle(df_path),
+    trn_df, val_df = train_test_split(dataframe,
                                       test_size=validation_ratio,
                                       random_state=rand_state,
                                       shuffle=True)
     dataloader_kwargs = {
         'shuffle': 'True',
         # 'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
-        'num_workers': 0,
-        'pin_memory': True if device == torch.device('cuda') else False
-    }
+        'pin_memory': True if device == torch.device('cuda') else False, }
 
-    trn_dataloader = torch.utils.data.DataLoader(
-        DataFrameDataset(trn_df),
-        batch_size=trn_batch_size,
-        **dataloader_kwargs)
+    trn_dataloader = DataLoader(DataFrameDataset(trn_df),
+                                batch_size=trn_batch_size,
+                                **dataloader_kwargs)
 
-    val_dataloader = torch.utils.data.DataLoader(
-        DataFrameDataset(val_df),
-        batch_size=val_batch_size,
-        **dataloader_kwargs)
+    val_dataloader = DataLoader(DataFrameDataset(val_df),
+                                batch_size=val_batch_size,
+                                **dataloader_kwargs)
 
-    # Start training and until converge #######################################
-    
+    # Construct the network and get prepared for training #####################
+    autoencoder = EncoderNet(input_dim=dataframe.shape[1],
+                             layer_dim=layer_dim,
+                             latent_dim=latent_dim,
+                             num_layers=num_layers,
+                             autoencoder=True).to(device)
+    assert ae_loss_func.lower() == 'l1' or ae_loss_func.lower() == 'mse'
+    loss_func = F.l1_loss if ae_loss_func.lower() == 'l1' else F.mse_loss
 
+    optimizer = get_optimizer(opt_type=ae_opt,
+                              networks=autoencoder,
+                              learning_rate=ae_lr)
+    lr_decay = LambdaLR(optimizer, lr_lambda=lambda e: lr_decay_factor ** e)
 
-
-
-
-
-
-
-
-
-
-    # Store the best AE and return the best one ###############################
-    pass
-
-
-
-
-def encoder_init(
-        ae_int: bool,
-        model_path: str,
-        training_df: pd.DataFrame,
-        validation_df: pd.DataFrame,
-        rand_state: int,
-
-        layer_dim: int,
-        latent_dim: int,
-        num_layers: int,
-
-        precision: str = 'full',
-        loss_func: str = 'mse',
-        optimizer: str = 'sgd',
-        learning_rate: float = 1e-3,
-        decay_factor: float = 1.00,
-        early_stop_patience: int = 10,
-        training_batch_size: int = 32,
-        validation_batch_size: int = 1024,
-        num_epochs: int = 100,
-
-        device: str = 'cuda',
-        verbose: bool = True, ):
-
-    # If autoencoder initialization is not required, return a fresh encoder
-    if not ae_int:
-        net = EncoderNet(
-            input_dim=training_df.shape[1],
-            layer_dim=layer_dim,
-            latent_dim=latent_dim,
-            num_layers=num_layers,
-            autoencoder=False).to(device)
-        return net.half() if precision.lower() == 'half' else net
-
-    # If the model exists, load and return
-    if os.path.exists(model_path):
-        net = torch.load(model_path)
-        return net.half() if precision.lower() == 'half' else net
-
-    # Setting up random seed for reproducible and deterministic results
-    seed_random_state(rand_state)
-
-    # Otherwise, construct and train a new autoencoder
-    loader_kwargs = \
-        {'num_workers': multiprocessing.cpu_count(),
-         'pin_memory': True} if device == 'cuda' else {}
-
-    training_dataloader = torch.utils.data.DataLoader(
-        DataFrameDataset(training_df),
-        batch_size=training_batch_size,
-        shuffle=True,
-        **loader_kwargs)
-
-    validation_dataloader = torch.utils.data.DataLoader(
-        DataFrameDataset(validation_df),
-        batch_size=validation_batch_size,
-        shuffle=True,
-        **loader_kwargs)
-
-    net = EncoderNet(
-        input_dim=training_df.shape[1],
-        layer_dim=layer_dim,
-        latent_dim=latent_dim,
-        num_layers=num_layers,
-        autoencoder=True).to(device)
-    net = net.half() if precision.lower() == 'half' else net
-
-    opt = get_optimizer(opt_type=optimizer,
-                        networks=net,
-                        learning_rate=learning_rate)
-    lr_decay = LambdaLR(opt, lr_lambda=lambda e: decay_factor ** e)
-
-
-    loss_func = F.l1_loss if loss_func == 'l1' else F.mse_loss
-
-    # Training and validation loop
+    # Train until max number of epochs is reached or early stopped ############
     best_val_loss = np.inf
-    best_model = None
+    best_autoencoder = None
     patience = 0
-    for epoch in range(1, num_epochs + 1):
 
-        lr_decay.step(epoch - 1)
+    if verbose:
+        print('=' * 80)
+        print('Training log for autoencoder model (%s): ' % model_path)
 
-        # Training
-        net.train()
-        train_loss = 0.
-        for batch_idx, feature in enumerate(training_dataloader):
+    for epoch in range(max_num_epochs):
 
-            feature = feature.to(device).half() if precision == 'half' \
-                else feature.to(device)
-            net.zero_grad()
-            pred = net(feature)
+        lr_decay.step(epoch)
 
-            loss = loss_func(pred, feature)
-            train_loss += loss.item() * len(feature)
+        # Training loop for autoencoder
+        autoencoder.train()
+        trn_loss = 0.
+        for batch_idx, samples in enumerate(trn_dataloader):
+            samples = samples.to(device)
+            recon_samples = autoencoder(samples)
+            autoencoder.zero_grad()
+
+            loss = loss_func(input=recon_samples, target=samples)
             loss.backward()
-            opt.step()
-        train_loss /= len(training_dataloader.dataset)
+            optimizer.step()
 
-        # Validation
-        net.eval()
+            trn_loss += loss.item() * len(samples)
+        trn_loss /= len(trn_dataloader.dataset)
+
+        # Validation loop for autoencoder
+        autoencoder.eval()
         val_loss = 0.
         with torch.no_grad():
-            for feature in validation_dataloader:
+            for samples in val_dataloader:
+                samples = samples.to(device)
+                recon_samples = autoencoder(samples)
+                loss = loss_func(input=recon_samples, target=samples)
 
-                feature = feature.to(device).half() if precision == 'half' \
-                    else feature.to(device)
-                pred = net(feature)
-                loss = loss_func(pred, feature)
-                val_loss += loss.item() * len(feature)
-
-            val_loss /= len(validation_dataloader.dataset)
+                val_loss += loss.item() * len(samples)
+            val_loss /= len(val_dataloader.dataset)
 
         if verbose:
             print('Epoch %4i: training loss: %.4f;\t validation loss: %.4f'
-                  % (epoch, train_loss, val_loss))
+                  % (epoch + 1, trn_loss, val_loss))
 
+        # Save the model to memory if it achieves best validation loss
         if val_loss < best_val_loss:
             patience = 0
             best_val_loss = val_loss
-            best_model = copy.deepcopy(net)
-
+            best_autoencoder = copy.deepcopy(autoencoder)
+        # Otherwise increase patience and check for early stopping
         else:
             patience += 1
             if patience > early_stop_patience:
@@ -229,114 +182,91 @@ def encoder_init(
                           % best_val_loss)
                 break
 
-    torch.save(best_model, model_path)
-    return best_model
+    # Store the best autoencoder and return it ################################
+    try:
+        os.makedirs(os.path.dirname(model_path))
+    except FileExistsError:
+        pass
+    torch.save(best_autoencoder, model_path)
+    return best_autoencoder.encoder
 
 
 def get_gene_encoder(
         model_folder: str,
+        data_folder: str,
 
-        training_df: pd.DataFrame,
-        validation_df: pd.DataFrame,
-
-        layer_dim: int,
-        latent_dim: int,
-        num_layers: int,
-
+        # RNA sequence usage and scaling
         rnaseq_feature_usage: str,
         rnaseq_scaling: str,
 
-        encoder_training_kwarg: dict):
+        # Autoencoder network configuration
+        autoencoder_init: bool,
+        layer_dim: int,
+        num_layers: int,
+        latent_dim: int,
 
-    model_name = 'gene_net(%i*%i=>%i, %s, scaling=%s)' \
-                 % (layer_dim, num_layers, latent_dim,
-                    rnaseq_feature_usage, rnaseq_scaling)
-    model_path = os.path.join(model_folder, model_name)
+        # Training keyword parameters to be provided
+        training_kwarg: dict,
 
-    return encoder_init(
-        model_path=model_path,
-        training_df=training_df,
-        validation_df=validation_df,
+        # Miscellaneous
+        device: torch.device = torch.device('cuda'),
+        verbose: bool = True,
+        rand_state: int = 0, ):
 
+    gene_encoder_name = 'gene_net(%i*%i=>%i, %s, scaling=%s).pt' % \
+                        (layer_dim, num_layers, latent_dim,
+                         rnaseq_feature_usage, rnaseq_scaling)
+    gene_encoder_path = os.path.join(model_folder, gene_encoder_name)
+
+    gene_df_name = 'rnaseq_df(%s, scaling=%s, dtype=float16).pkl' \
+                   % (rnaseq_feature_usage, rnaseq_scaling)
+    gene_df_path = os.path.join(data_folder, 'processed', gene_df_name)
+    gene_df = pd.read_pickle(gene_df_path)
+
+    return get_encoder(
+        model_path=gene_encoder_path,
+        dataframe=gene_df,
+
+        autoencoder_init=autoencoder_init,
         layer_dim=layer_dim,
-        latent_dim=latent_dim,
         num_layers=num_layers,
+        latent_dim=latent_dim,
 
-        **encoder_training_kwarg)
+        **training_kwarg,
+
+        device=device,
+        verbose=verbose,
+        rand_state=rand_state, )
 
 
 def get_drug_encoder(
         model_folder: str,
-
-        training_df: pd.DataFrame,
-        validation_df: pd.DataFrame,
-
-        layer_dim: int,
-        latent_dim: int,
-        num_layers: int,
-
-        descriptor_scaling: str,
-        nan_threshold: float,
-        drug_feature_usage: str,
-
-        encoder_training_kwarg: dict):
-
-    model_name = 'drug_net(%i*%i=>%i, %s, ' \
-                 'descriptor_scaling=%s, nan_thresh=%.2f)' \
-                 % (layer_dim, num_layers, latent_dim,
-                    drug_feature_usage, descriptor_scaling, nan_threshold,)
-    model_path = os.path.join(model_folder, model_name)
-
-    return encoder_init(
-        model_path=model_path,
-        training_df=training_df,
-        validation_df=validation_df,
-
-        layer_dim=layer_dim,
-        latent_dim=latent_dim,
-        num_layers=num_layers,
-
-        **encoder_training_kwarg)
-
-
-def get_encoders(
-
         data_folder: str,
-        model_folder: str,
 
-        autoencoder_init: bool,
-        precision: str,
-
-        gene_layer_dim: int,
-        gene_latent_dim: int,
-        gene_num_layers: int,
-
-        rnaseq_feature_usage: str,
-        rnaseq_scaling: str,
-
-        drug_layer_dim: int,
-        drug_latent_dim: int,
-        drug_num_layers: int,
-
+        # Drug feature usage and scaling
+        drug_feature_usage: str,
         descriptor_scaling: str,
         nan_threshold: float,
-        drug_feature_usage: str,
 
-        rand_state: int = 0,
-        verbose: bool = False):
+        # Autoencoder network configuration
+        autoencoder_init: bool,
+        layer_dim: int,
+        num_layers: int,
+        latent_dim: int,
 
-    data_folder = os.path.join(data_folder, './processed/')
+        # Training keyword parameters to be provided
+        training_kwarg: dict,
 
-    # Load gene dataframe
-    rnaseq_df_filename = 'rnaseq_df(%s, scaling=%s, dtype=float16).pkl' \
-                         % (rnaseq_feature_usage, rnaseq_scaling)
-    rnaseq_df_path = os.path.join(data_folder, rnaseq_df_filename)
-    rnaseq_df = pd.read_pickle(rnaseq_df_path)
-    trn_rnaseq_df, val_rnaseq_df = \
-        train_test_split(rnaseq_df,
-                         test_size=0.2,
-                         random_state=rand_state,
-                         shuffle=True)
+        # Miscellaneous
+        device: torch.device = torch.device('cuda'),
+        verbose: bool = True,
+        rand_state: int = 0, ):
+
+    drug_encoder_name = 'drug_net(%i*%i=>%i, %s, descriptor_scaling=%s, ' \
+                        'nan_thresh=%.2f).pt' % \
+        (layer_dim, num_layers, latent_dim,
+         drug_feature_usage, descriptor_scaling, nan_threshold,)
+    drug_encoder_path = os.path.join(model_folder, drug_encoder_name)
 
     # Load drug dataframe
     drug_fingerprint_df_filename = 'drug_fingerprint_df(dtype=int8).pkl'
@@ -352,92 +282,75 @@ def get_encoders(
     drug_descriptor_df = pd.read_pickle(drug_descriptor_df_path)
 
     if drug_feature_usage == 'both':
-        drug_feature_df = pd.concat([drug_fingerprint_df, drug_descriptor_df],
-                                    axis=1, join='inner')
+        drug_df = pd.concat([drug_fingerprint_df, drug_descriptor_df],
+                            axis=1, join='inner')
     elif drug_feature_usage == 'fingerprint':
-        drug_feature_df = drug_fingerprint_df
+        drug_df = drug_fingerprint_df
     elif drug_feature_usage == 'descriptor':
-        drug_feature_df = drug_descriptor_df
+        drug_df = drug_descriptor_df
     else:
         raise ValueError('Undefined drug feature %s.' % drug_feature_usage)
-    trn_drug_df, val_drug_df = \
-        train_test_split(drug_feature_df,
-                         test_size=0.2,
-                         random_state=rand_state,
-                         shuffle=True)
 
-    encoder_training_kwarg = {
-        'ae_int': autoencoder_init,
-        'rand_state': rand_state,
-        'precision': precision,
+    return get_encoder(
+        model_path=drug_encoder_path,
+        dataframe=drug_df,
 
-        'optimizer': 'Adam',
-        'learning_rate': 5e-4,
-        'early_stop_patience': 32,
-        'num_epochs': 5000,
+        autoencoder_init=autoencoder_init,
+        layer_dim=layer_dim,
+        num_layers=num_layers,
+        latent_dim=latent_dim,
 
-        'verbose': verbose}
+        **training_kwarg,
 
-    gene_encoder = get_gene_encoder(
-        model_folder=model_folder,
-
-        training_df=trn_rnaseq_df,
-        validation_df=val_rnaseq_df,
-
-        layer_dim=gene_layer_dim,
-        latent_dim=gene_latent_dim,
-        num_layers=gene_num_layers,
-
-        rnaseq_feature_usage=rnaseq_feature_usage,
-        rnaseq_scaling=rnaseq_scaling,
-
-        encoder_training_kwarg=encoder_training_kwarg)
-
-    drug_encoder = get_drug_encoder(
-        model_folder=model_folder,
-
-        training_df=trn_drug_df,
-        validation_df=val_drug_df,
-
-        layer_dim=drug_layer_dim,
-        latent_dim=drug_latent_dim,
-        num_layers=drug_num_layers,
-
-        descriptor_scaling=descriptor_scaling,
-        nan_threshold=nan_threshold,
-        drug_feature_usage=drug_feature_usage,
-
-        encoder_training_kwarg=encoder_training_kwarg)
-
-    return gene_encoder, drug_encoder
+        device=device,
+        verbose=verbose,
+        rand_state=rand_state, )
 
 
 if __name__ == '__main__':
 
-    gene_encoder, drug_encoder = get_encoders(
+    # Test code for autoencoder with RNA sequence and drug features
+    ae_training_kwarg = {
+        'ae_loss_func': 'mse',
+        'ae_opt': 'adam',
+        'ae_lr': 1e-3,
+        'lr_decay_factor': 0.95,
+        'max_num_epochs': 10,
+        'early_stop_patience': 50, }
+
+    gene_encoder = get_gene_encoder(
+        model_folder='../../models/',
         data_folder='../../data/',
-        model_folder='../../models',
 
-        autoencoder_init=True,
-        precision='full',
-
-        gene_layer_dim=1024,
-        gene_latent_dim=512,
-        gene_num_layers=2,
-
-        rnaseq_feature_usage='combat',
+        rnaseq_feature_usage='source_scale',
         rnaseq_scaling='std',
 
-        drug_layer_dim=4096,
-        drug_latent_dim=1024,
-        drug_num_layers=2,
+        autoencoder_init=True,
+        layer_dim=1024,
+        num_layers=2,
+        latent_dim=256,
 
-        descriptor_scaling='std',
-        nan_threshold=0.,
+        training_kwarg=ae_training_kwarg,
+
+        device=torch.device('cuda'),
+        verbose=True,
+        rand_state=0, )
+
+    drug_encoder = get_drug_encoder(
+        model_folder='../../models/',
+        data_folder='../../data/',
+
         drug_feature_usage='both',
+        descriptor_scaling='std',
+        nan_threshold=0.0,
 
-        rand_state=0,
-        verbose=True, )
+        autoencoder_init=True,
+        layer_dim=1024,
+        num_layers=2,
+        latent_dim=256,
 
-    print(gene_encoder)
-    print(drug_encoder)
+        training_kwarg=ae_training_kwarg,
+
+        device=torch.device('cuda'),
+        verbose=True,
+        rand_state=0, )

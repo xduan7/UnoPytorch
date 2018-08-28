@@ -82,15 +82,15 @@ if __name__ == '__main__':
                 # Network configuration ###################################
                 # Encoders for drug features and RNA sequence
                 '--gene_layer_dim', '1024',
-                '--gene_latent_dim', '256',
                 '--gene_num_layers', '2',
+                '--gene_latent_dim', '256',
 
                 '--drug_layer_dim', '4096',
-                '--drug_latent_dim', '1024',
                 '--drug_num_layers', '2',
+                '--drug_latent_dim', '1024',
 
                 # Using autoencoder for drug/sequence encoder init
-                '--ae_init',
+                # '--autoencoder_init',
 
                 # Drug response regression network
                 '--resp_layer_dim', '1024',

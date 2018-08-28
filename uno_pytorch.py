@@ -10,6 +10,8 @@
 
 import argparse
 import json
+import multiprocessing
+import os
 import time
 
 import numpy as np
@@ -24,9 +26,10 @@ from networks.resp_net import RespNet
 from utils.datasets.drug_resp_dataset import DrugRespDataset
 from utils.datasets.rna_seq_dataset import RNASeqDataset
 from utils.data_processing.dataframe_scaling import SCALING_METHODS
-from utils.miscellaneous.encoder_initialization import get_encoders
+from utils.network_config.encoder_init import get_encoders, get_encoder, \
+    get_gene_encoder
 from utils.data_processing.label_encoding import get_labels
-from utils.miscellaneous.optimizer import get_optimizer
+from utils.network_config.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
 
 
@@ -259,7 +262,7 @@ def main():
                         help='number of layers for drug feature')
 
     # Using autoencoder for drug/sequence encoder initialization
-    parser.add_argument('--ae_init', action='store_true',
+    parser.add_argument('--autoencoder_init', action='store_true',
                         help='indicator of autoencoder initialization for '
                              'drug/RNA sequence feature encoder')
 
@@ -348,9 +351,7 @@ def main():
     dataloader_kwargs = {
         'shuffle': 'True',
         # 'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
-        'num_workers': 0,
-        'pin_memory': True if use_cuda else False
-    }
+        'pin_memory': True if use_cuda else False, }
 
     # Drug response dataloaders for training/validation
     drug_resp_dataset_kwargs = {
@@ -416,39 +417,41 @@ def main():
         **dataloader_kwargs)
 
     # Constructing and initializing neural networks ###########################
-    # Sequence and drug feature encoders with initialization
-    gene_encoder, drug_encoder = get_encoders(
-        data_folder='./data/',
+    # Autoencoder training hyper-parameters
+    ae_training_kwarg = {
+        'ae_loss_func': 'mse',
+        'ae_opt': 'sgd',
+        'ae_lr': 1e-3,
+        'lr_decay_factor': 0.95,
+        'max_num_epochs': 1000,
+        'early_stop_patience': 50, }
+
+    # Get RNA sequence encoder
+
+    gene_encoder = get_gene_encoder(
         model_folder='./models/',
+        data_folder='./data/',
+        input_dim=drug_resp_trn_loader.dataset.rnaseq_dim,
+        args=args,
+        training_kwarg=ae_training_kwarg,
+        device=device,
+        verbose=True, )
 
-        autoencoder_init=args.ae_init,
-        precision=args.precision,
+    # Get drug feature encoder
+    drug_encoder_name = \
+        'drug_net(%i*%i=>%i, %s, descriptor_scaling=%s, nan_thresh=%.2f)' % \
+        (args.drug_layer_dim, args.drug_num_layers, args.drug_latent_dim,
+         args.drug_feature_usage, args.descriptor_scaling, args.nan_threshold)
 
-        gene_layer_dim=args.gene_layer_dim,
-        gene_latent_dim=args.gene_latent_dim,
-        gene_num_layers=args.gene_num_layers,
 
-        rnaseq_feature_usage=args.rnaseq_feature_usage,
-        rnaseq_scaling=args.rnaseq_scaling,
-
-        drug_layer_dim=args.drug_layer_dim,
-        drug_latent_dim=args.drug_latent_dim,
-        drug_num_layers=args.drug_num_layers,
-
-        descriptor_scaling=args.descriptor_scaling,
-        nan_threshold=args.nan_threshold,
-        drug_feature_usage=args.drug_feature_usage,
-
-        rand_state=args.rand_state,
-        verbose=False)
 
     # Regressor for drug response
     resp_net = RespNet(
         gene_latent_dim=args.gene_latent_dim,
         drug_latent_dim=args.drug_latent_dim,
 
-        gene_encoder=gene_encoder.encoder,
-        drug_encoder=drug_encoder.encoder,
+        gene_encoder=gene_encoder,
+        drug_encoder=drug_encoder,
 
         resp_layer_dim=args.resp_layer_dim,
         resp_num_layers=args.resp_num_layers,
@@ -475,13 +478,7 @@ def main():
         num_classes=len(get_labels('./data/processed/type_dict.json')),
         **clf_net_kwargs).to(device)
 
-    # Multi-GPU and precision settings
-    if args.precision == 'half':
-        resp_net = resp_net.half()
-        category_clf_net = category_clf_net.half()
-        site_clf_net = site_clf_net.half()
-        type_clf_net = type_clf_net.half()
-
+    # Multi-GPU settings
     if args.multi_gpu:
         resp_net = nn.DataParallel(resp_net)
         category_clf_net = nn.DataParallel(category_clf_net)

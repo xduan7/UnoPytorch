@@ -1,5 +1,5 @@
 """ 
-    File Name:          UnoPytorch/weight_initialization.py
+    File Name:          UnoPytorch/weight_init.py
     Author:             Xiaotian Duan (xduan7)
     Email:              xduan7@uchicago.edu
     Date:               8/13/18

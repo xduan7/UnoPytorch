@@ -246,6 +246,9 @@ class DrugRespDataset(data.Dataset):
         self.__drug_feature_df = None
         self.__rnaseq_df = None
 
+        # Internal lock #######################################################
+        self.__lock = multiprocessing.Lock()
+
         # Dataset summary #####################################################
         if summary:
             print('=' * 80)
@@ -282,6 +285,9 @@ class DrugRespDataset(data.Dataset):
         # Note that this chunk of code does not work with pytorch 4.1 for
         # multiprocessing reasons. Chances are that during the run, one of
         # the workers might hang and prevents the training from moving on
+
+        self.__lock.acquire()
+
         drug_resp = self.__drug_resp_array[index]
 
         drug_feature = np.array(
@@ -293,6 +299,8 @@ class DrugRespDataset(data.Dataset):
 
         concentration = np.array([drug_resp[3]], dtype=self.__output_dtype)
         growth = np.array([drug_resp[4]], dtype=self.__output_dtype)
+
+        self.__lock.release()
 
         return rnaseq, drug_feature, concentration, growth
 
@@ -332,7 +340,6 @@ class DrugRespDataset(data.Dataset):
         # Encode data sources into numeric
         data_src_dict_path = os.path.join(
             self.__processed_data_folder, 'data_src_dict.json')
-        print('there')
         drug_resp_df['SOURCE'], _ = encode_label_to_int(
             drug_resp_df['SOURCE'], data_src_dict_path)
 

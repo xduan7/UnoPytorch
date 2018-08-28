@@ -8,7 +8,7 @@
 
 """
 import torch.nn as nn
-from utils.miscellaneous.weight_initialization import basic_weight_init
+from utils.network_config.weight_init import basic_weight_init
 
 
 class EncoderNet(nn.Module):
