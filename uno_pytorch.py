@@ -420,7 +420,7 @@ def main():
         'ae_loss_func': 'mse',
         'ae_opt': 'sgd',
         'ae_lr': 2e-1,
-        'lr_decay_factor': 0.995,
+        'lr_decay_factor': 1.0,
         'max_num_epochs': 1000,
         'early_stop_patience': 50, }
 

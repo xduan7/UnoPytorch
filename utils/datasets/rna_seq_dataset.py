@@ -84,6 +84,32 @@ class RNASeqDataset(data.Dataset):
             # Partitioning (train/validation) and data usage settings
             rnaseq_feature_usage: str = 'combat',
             validation_ratio: float = 0.2, ):
+        """dataset = RNASeqDataset('./data/', True)
+
+        Construct a RNA sequence dataset based on the parameters provided.
+        The process includes:
+            * Downloading source data files;
+            * Pre-processing (scaling);
+            * Public attributes and other preparations.
+
+        Args:
+            data_folder (str): path to data folder.
+            training (bool): indicator for training.
+            rand_state (int): random seed used for training/validation split
+                and other processes that requires randomness.
+            summary (bool): set True for printing dataset summary.
+
+            int_dtype (type): integer dtype for data storage in RAM and disk.
+            float_dtype (type): float dtype for data storage in RAM and disk.
+            output_dtype (type): output dtype for neural network.
+
+            rnaseq_scaling (str): scaling method for RNA squence. Choose
+                between 'none', 'std', and 'minmax'.
+            rnaseq_feature_usage: RNA sequence data usage. Choose between
+                'source_scale' and 'combat'.
+            validation_ratio (float): portion of validation data out of all
+                data samples.
+        """
 
         # Initialization ######################################################
         self.__data_folder = data_folder
@@ -132,7 +158,7 @@ class RNASeqDataset(data.Dataset):
         self.__split_drug_resp()
 
         # Converting dataframes to arrays for rapid access ####################
-        self.__cl_array = self.__cl_df.values
+        self.__cl_array = self.__cl_df.values.astype(self.__float_dtype)
 
         # Public attributes ###################################################
         self.cells = self.__cl_df.index.tolist()
@@ -152,25 +178,28 @@ class RNASeqDataset(data.Dataset):
             print('=' * 80)
 
     def __len__(self):
-        """length = len(cell_line_dataset)
+        """length = len(rna_seq_dataset)
 
         Get the length of dataset, which is the number of cell lines.
 
-        :return:
-            (int): the length of dataset.
+        Returns:
+            int: the length of dataset.
         """
         return self.num_cells
 
     def __getitem__(self, index):
-        """
+        """rnaseq, data_src, site, type, category = rna_seq_dataset[0]
 
-        This function fetches the feature, condition and target with the
-        corresponding index of cell line dataset.
+        Args:
+            index (int): index for target data slice.
 
-        :param index: index for cell line dataset.
-        :return:
-            (tuple): RNA sequence (list of float), conditions (list of float),
-                    site (float), type (float), category (float).
+        Returns:
+            tuple: a tuple containing the following five elements:
+                * RNA sequence data (np.ndarray of float);
+                * one-hot-encoded data source (np.ndarray of float);
+                * encoded cell line site (int);
+                * encoded cell line type (int);
+                * encoded cell line category (int)
         """
 
         cl_data = self.__cl_array[index]
@@ -186,13 +215,13 @@ class RNASeqDataset(data.Dataset):
         return rnaseq, data_src, cl_site, cl_type, cl_category
 
     def __process_meta(self):
-        """self.__process_meta()
+        """self.__process_mata()
 
         This function reads from cell line metadata file and process it into
         dataframe as return.
 
-        :return:
-            (pd.dataframe): cell line metadata dataframe.
+        Returns:
+            pd.dataframe: cell line metadata dataframe.
         """
 
         logger.info('Processing cell line meta dataframe ... ')
@@ -240,8 +269,8 @@ class RNASeqDataset(data.Dataset):
         This function reads from cell line RNA sequence file and process it
         into dataframe as return.
 
-        :return:
-            (pd.dataframe): (un-trimmed) RNA sequence dataframe.
+        Returns:
+            pd.dataframe: (un-trimmed) RNA sequence dataframe.
         """
 
         logger.info('Processing RNA sequence dataframe ... ')
@@ -284,8 +313,8 @@ class RNASeqDataset(data.Dataset):
         This function takes RNA sequence dataframe and metadata dataframe
         and merge them into a single dataframe for better accessibility.
 
-        :return:
-            (pd.dataframe): RNA sequence dataframe with metadata
+        Returns:
+            pd.dataframe: RNA sequence dataframe with metadata
         """
 
         meta_df = self.__process_meta()
@@ -302,9 +331,18 @@ class RNASeqDataset(data.Dataset):
         return cl_df
 
     def __one_hot_encoding(self):
+        """num_data_src = self.__one_hot_encoding()
 
-        num_data_src = len(get_labels(
-            os.path.join(self.__processed_data_folder, 'data_src_dict.json')))
+        This function takes the integer-encoded data sources from the
+        merged cell line dataframe, and convert them into one-hot-encoded
+        labels. Note
+
+        Returns:
+            int: number of data sources in total.
+        """
+
+        num_data_src = len(get_labels(os.path.join(
+            self.__processed_data_folder, 'data_src_dict.json')))
 
         self.__cl_df['data_src'] = encode_int_to_onehot(
             self.__cl_df['data_src'],
@@ -317,12 +355,12 @@ class RNASeqDataset(data.Dataset):
         """self.__split_drug_resp()
 
         Split training and validation dataframe for cell lines, stratified
-        on tumor type.
+        on tumor type. Note that after the split, our dataframe will only
+        contain training/validation data based on training indicator.
 
-        :return:
-            None.
+        Returns:
+            None
         """
-
         training_cl_df, validation_cl_df = \
             train_test_split(self.__cl_df,
                              test_size=self.__validation_ratio,

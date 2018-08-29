@@ -446,8 +446,8 @@ if __name__ == '__main__':
     ae_training_kwarg = {
         'ae_loss_func': 'mse',
         'ae_opt': 'sgd',
-        'ae_lr': 2e-1,
-        'lr_decay_factor': 0.995,
+        'ae_lr': 0.2,
+        'lr_decay_factor': 1.0,
         'max_num_epochs': 1000,
         'early_stop_patience': 50, }
 
@@ -461,7 +461,7 @@ if __name__ == '__main__':
         autoencoder_init=True,
         layer_dim=1024,
         num_layers=2,
-        latent_dim=256,
+        latent_dim=512,
 
         training_kwarg=ae_training_kwarg,
 
@@ -478,9 +478,9 @@ if __name__ == '__main__':
         nan_threshold=0.0,
 
         autoencoder_init=True,
-        layer_dim=4096,
+        layer_dim=2048,
         num_layers=2,
-        latent_dim=1024,
+        latent_dim=512,
 
         training_kwarg=ae_training_kwarg,
 
