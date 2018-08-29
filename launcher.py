@@ -21,6 +21,7 @@ if __name__ == '__main__':
         # {'trn_src': ['GDSC'],
         #  'val_src': ['GDSC'], },
 
+        # Training + validation data sources for the transfer learning matrix
         {'trn_src': ['NCI60'],
          'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
 
@@ -75,7 +76,7 @@ if __name__ == '__main__':
                 # Feature usage and partitioning settings
                 '--rnaseq_feature_usage', rnaseq_feature,
                 '--drug_feature_usage', 'both',
-                '--validation_size', '0.15',
+                '--validation_ratio', '0.15',
                 # '--disjoint_drugs',
                 '--disjoint_cells',
 
@@ -90,7 +91,7 @@ if __name__ == '__main__':
                 '--drug_latent_dim', '1024',
 
                 # Using autoencoder for drug/sequence encoder init
-                # '--autoencoder_init',
+                '--autoencoder_init',
 
                 # Drug response regression network
                 '--resp_layer_dim', '1024',

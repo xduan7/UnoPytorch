@@ -18,13 +18,15 @@ class DataFrameDataset(data.Dataset):
     def __init__(
             self,
             dataframe: pd.DataFrame,
-            dtype: type = np.float32, ):
+            ram_dtype: type = np.float16,
+            out_dtype: type = np.float32, ):
 
-        self.__len = len(dataframe)
-        self.__data = dataframe.values.astype(dtype)
+        self.__data = dataframe.values.astype(ram_dtype)
+        self.__out_dtype = out_dtype
+        self.__len = len(self.__data)
 
     def __len__(self):
         return self.__len
 
     def __getitem__(self, index):
-        return self.__data[index]
+        return self.__data[index].astype(self.__out_dtype)

@@ -107,9 +107,9 @@ class DrugRespDataset(data.Dataset):
             nan_threshold: float = 0.0,
 
             # Partitioning (train/validation) and data usage settings
-            rnaseq_feature_usage: str = 'combat',
+            rnaseq_feature_usage: str = 'source_scale',
             drug_feature_usage: str = 'both',
-            validation_size: float = 0.2,
+            validation_ratio: float = 0.2,
             disjoint_drugs: bool = True,
             disjoint_cells: bool = True, ):
         """dataset = DrugRespDataset('./data/', 'NCI60', True)
@@ -151,7 +151,7 @@ class DrugRespDataset(data.Dataset):
                 sequence, or 'source_scale'.
             drug_feature_usage (str): drug feature usage. Choose between
                 'fingerprint', 'descriptor', or 'both'.
-            validation_size (float): portion of validation data out of all
+            validation_ratio (float): portion of validation data out of all
                 data samples. Note that this is not strictly the portion
                 size. During the split, we will pick a percentage of
                 drugs/cells and take the combination. The calculation will
@@ -207,7 +207,7 @@ class DrugRespDataset(data.Dataset):
 
         self.__rnaseq_feature_usage = rnaseq_feature_usage
         self.__drug_feature_usage = drug_feature_usage
-        self.__validation_size = validation_size
+        self.__validation_ratio = validation_ratio
         self.__disjoint_drugs = disjoint_drugs
         self.__disjoint_cells = disjoint_cells
 
@@ -848,7 +848,7 @@ class DrugRespDataset(data.Dataset):
         What the function really splits by the ratio is the list of
         drugs/cell lines. Also, if both drugs and cell lines are marked
         disjoint, the function will split drug and cell lists with ratio of
-        (validation_size ** 0.5).
+        (validation_size ** 0.7).
 
         Warnings will be raise if the validation ratio is off too much.
 
@@ -882,18 +882,20 @@ class DrugRespDataset(data.Dataset):
 
         # Change validation size when both features are disjoint in splitting
         if self.__disjoint_cells and self.__disjoint_drugs:
-            self.__validation_size = self.__validation_size ** 0.7
+            adjusted_val_ratio = self.__validation_ratio ** 0.7
+        else:
+            adjusted_val_ratio = self.__validation_ratio
 
         # Randomly take the validation_size portion of drugs/cells
         training_cell_list, validation_cell_list = \
             train_test_split(cell_list,
-                             test_size=self.__validation_size,
+                             test_size=adjusted_val_ratio,
                              random_state=self.__rand_state,
                              # stratify=cell_stratified_list,
                              shuffle=True)
         training_drug_list, validation_drug_list = \
             train_test_split(drug_list,
-                             test_size=self.__validation_size,
+                             test_size=adjusted_val_ratio,
                              random_state=self.__rand_state,
                              stratify=drug_stratified_list,
                              shuffle=True)
@@ -932,7 +934,7 @@ class DrugRespDataset(data.Dataset):
         else:
             training_drug_resp_df, validation_drug_resp_df = \
                 train_test_split(self.__drug_resp_df,
-                                 test_size=self.__validation_size,
+                                 test_size=self.__validation_ratio,
                                  random_state=self.__rand_state,
                                  shuffle=False)
 
@@ -960,9 +962,9 @@ class DrugRespDataset(data.Dataset):
 
         validation_ratio = len(validation_drug_resp_df) \
             / (len(training_drug_resp_df) + len(validation_drug_resp_df))
-        if validation_ratio < self.__validation_size * 0.8 \
-                or validation_ratio > self.__validation_size * 1.2:
-            logger.warning('Bad validation ratio: %.2f' %
+        if (validation_ratio < self.__validation_ratio * 0.8) \
+                or (validation_ratio > self.__validation_ratio * 1.2):
+            logger.warning('Bad validation ratio: %.3f' %
                            validation_ratio)
 
         # Keep only training_drug_resp_df or validation_drug_resp_df
@@ -979,12 +981,8 @@ if __name__ == '__main__':
     data_gen = DrugRespDataset(
         data_folder='../../data/',
         data_source='NCI60',
-        disjoint_cells=True,
-        disjoint_drugs=True,
-        int_dtype=np.int32,
-        float_dtype=np.float32,
-        growth_scaling='none',
-        training=True)
+        training=True,
+    rand_state=2)
 
     num_operations = 10000
     start_time = time.time()

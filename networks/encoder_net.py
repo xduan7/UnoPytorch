@@ -37,6 +37,8 @@ class EncoderNet(nn.Module):
         self.encoder.add_module('dense_%d' % num_layers,
                                 nn.Linear(prev_dim, latent_dim))
 
+        # self.encoder.add_module('activation', nn.Tanh())
+
         # Decoder #############################################################
         if autoencoder:
 

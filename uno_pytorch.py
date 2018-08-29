@@ -10,8 +10,6 @@
 
 import argparse
 import json
-import multiprocessing
-import os
 import time
 
 import numpy as np
@@ -26,8 +24,8 @@ from networks.resp_net import RespNet
 from utils.datasets.drug_resp_dataset import DrugRespDataset
 from utils.datasets.rna_seq_dataset import RNASeqDataset
 from utils.data_processing.dataframe_scaling import SCALING_METHODS
-from utils.network_config.encoder_init import get_encoders, get_encoder, \
-    get_gene_encoder
+from utils.network_config.encoder_init import get_gene_encoder, \
+    get_drug_encoder
 from utils.data_processing.label_encoding import get_labels
 from utils.network_config.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
@@ -233,12 +231,12 @@ def main():
 
     # Feature usage and partitioning settings
     parser.add_argument('--rnaseq_feature_usage', type=str, default='combat',
-                        help='ratio of NaN values allowed for drug features',
+                        help='RNA sequence data used',
                         choices=['source_scale', 'combat', ])
     parser.add_argument('--drug_feature_usage', type=str, default='both',
                         help='drug features (fp and/or desc) used',
                         choices=['fingerprint', 'descriptor', 'both', ])
-    parser.add_argument('--validation_size', type=float, default=0.2,
+    parser.add_argument('--validation_ratio', type=float, default=0.2,
                         help='ratio for validation dataset')
     parser.add_argument('--disjoint_drugs', action='store_true',
                         help='disjoint drugs between train/validation')
@@ -370,7 +368,7 @@ def main():
 
         'rnaseq_feature_usage': args.rnaseq_feature_usage,
         'drug_feature_usage': args.drug_feature_usage,
-        'validation_size': args.validation_size,
+        'validation_ratio': args.validation_ratio,
         'disjoint_drugs': args.disjoint_drugs,
         'disjoint_cells': args.disjoint_cells, }
 
@@ -402,7 +400,7 @@ def main():
         'rnaseq_scaling': args.rnaseq_scaling,
 
         'rnaseq_feature_usage': args.rnaseq_feature_usage,
-        'validation_size': args.validation_size, }
+        'validation_ratio': args.validation_ratio, }
 
     rna_seq_trn_loader = torch.utils.data.DataLoader(
         RNASeqDataset(training=True,
@@ -421,29 +419,42 @@ def main():
     ae_training_kwarg = {
         'ae_loss_func': 'mse',
         'ae_opt': 'sgd',
-        'ae_lr': 1e-3,
-        'lr_decay_factor': 0.95,
+        'ae_lr': 2e-1,
+        'lr_decay_factor': 0.995,
         'max_num_epochs': 1000,
         'early_stop_patience': 50, }
 
-    # Get RNA sequence encoder
+    encoder_kwarg = {
+        'model_folder': './models/',
+        'data_folder': './data/',
 
+        'autoencoder_init': args.autoencoder_init,
+        'training_kwarg': ae_training_kwarg,
+
+        'device': device,
+        'verbose': True,
+        'rand_state': args.rand_state, }
+
+    # Get RNA sequence encoder
     gene_encoder = get_gene_encoder(
-        model_folder='./models/',
-        data_folder='./data/',
-        input_dim=drug_resp_trn_loader.dataset.rnaseq_dim,
-        args=args,
-        training_kwarg=ae_training_kwarg,
-        device=device,
-        verbose=True, )
+        rnaseq_feature_usage=args.rnaseq_feature_usage,
+        rnaseq_scaling=args.rnaseq_scaling,
+
+        layer_dim=args.gene_layer_dim,
+        num_layers=args.gene_num_layers,
+        latent_dim=args.gene_latent_dim,
+        **encoder_kwarg)
 
     # Get drug feature encoder
-    drug_encoder_name = \
-        'drug_net(%i*%i=>%i, %s, descriptor_scaling=%s, nan_thresh=%.2f)' % \
-        (args.drug_layer_dim, args.drug_num_layers, args.drug_latent_dim,
-         args.drug_feature_usage, args.descriptor_scaling, args.nan_threshold)
+    drug_encoder = get_drug_encoder(
+        drug_feature_usage=args.drug_feature_usage,
+        descriptor_scaling=args.descriptor_scaling,
+        nan_threshold=args.nan_threshold,
 
-
+        layer_dim=args.drug_layer_dim,
+        num_layers=args.drug_num_layers,
+        latent_dim=args.drug_latent_dim,
+        **encoder_kwarg)
 
     # Regressor for drug response
     resp_net = RespNet(

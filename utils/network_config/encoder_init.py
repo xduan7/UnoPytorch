@@ -9,6 +9,7 @@
 """
 import logging
 import copy
+import multiprocessing
 import os
 
 import numpy as np
@@ -54,7 +55,7 @@ def get_encoder(
         device: torch.device = torch.device('cuda'),
         verbose: bool = True,
         rand_state: int = 0, ):
-    """encoder = gene_encoder = get_gene_encoder(./models/', dataframe,
+    """encoder = gene_encoder = get_encoder(./models/', dataframe,
            True, 1000, 3, 100, 'mse', 'sgd', 1e-3, 0.98, 100, 10)
 
     This function constructs, initializes and returns a feature encoder for
@@ -71,6 +72,48 @@ def get_encoder(
     Note that the saved model in disk contains the whole autoencoder (
     encoder and decoder). But the function only returns the encoder.
 
+    Also the dataframe should be processed before this function call.
+
+    Args:
+        model_path (str): path to model for loading (if exists) and
+            saving (for future usage).
+        dataframe (pd.DataFrame): dataframe for training and validation.
+
+        autoencoder_init (bool): indicator for using autoencoder as feature
+            encoder initialization method. If True, the function will
+            construct a autoencoder with symmetric encoder and decoder,
+            and then train it with part of dataframe while validating on
+            the rest, until early stopping is evoked or running out of epochs.
+        layer_dim (int): layer dimension for feature encoder.
+        num_layers (int): number of layers for feature encoder.
+        latent_dim (int): latent (output) space dimension for feature encoder.
+
+        ae_loss_func (str): loss function for autoencoder training. Select
+            between 'mse' and 'l1'.
+        ae_opt (str): optimizer for autoencoder training. Select between
+            'SGD', 'Adam', and 'RMSprop'.
+        ae_lr (float): learning rate for autoencoder training.
+        lr_decay_factor (float): exponential learning rate decay factor.
+        max_num_epochs (int): maximum number of epochs allowed.
+        early_stop_patience (int): patience for early stopping. If the
+            validation loss does not increase for this many epochs, the
+            function returns the encoder part of the autoencoder, with the
+            best validation loss so far.
+
+        validation_ratio (float): (validation data size / overall data size).
+        trn_batch_size (int): batch size for training.
+        val_batch_size (int): batch size for validation.
+
+        device (torch.device): torch device indicating where to train:
+            either on CPU or GPU. Note that this function does not support
+            multi-GPU yet.
+        verbose (bool): indicator for training epoch log on terminal.
+        rand_state (int): random seed used for layer initialization,
+            training/validation splitting, and all other processes that
+            requires randomness.
+
+    Returns:
+        torch.nn.Module: encoder for features from given dataframe.
     """
 
     # If autoencoder initialization is not required, return a plain encoder
@@ -99,7 +142,8 @@ def get_encoder(
                                       shuffle=True)
     dataloader_kwargs = {
         'shuffle': 'True',
-        # 'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
+        'num_workers': multiprocessing.cpu_count()
+        if device == torch.device('cuda') else 0,
         'pin_memory': True if device == torch.device('cuda') else False, }
 
     trn_dataloader = DataLoader(DataFrameDataset(trn_df),
@@ -212,6 +256,48 @@ def get_gene_encoder(
         device: torch.device = torch.device('cuda'),
         verbose: bool = True,
         rand_state: int = 0, ):
+    """gene_encoder = get_gene_encoder(./models/', './data/',
+           'source_scale', 'std', True, 1000, 3, 100, training_kwarg_dict)
+
+    This function takes arguments about RNA sequence encoder and return the
+    corresponding encoders. It will execute one of the following based on
+    parameters and previous saved models:
+        * simply initialize a new encoder;
+        * load existing autoencoder and return the encoder part;
+        * train a new autoencoder and return the encoder part;
+
+    Note that this function requires existing dataframes of RNA sequence.
+
+    Args:
+        model_folder (str): path to the model folder.
+        data_folder (str): path to data folder (root).
+
+        rnaseq_feature_usage (str): RNA sequence data used. Choose between
+            'source_scale' and 'combat'.
+        rnaseq_scaling (str): Scaling method for RNA sequence data.
+
+        autoencoder_init (bool): indicator for using autoencoder as RNA
+            sequence encoder initialization method.
+        layer_dim (int): layer dimension for RNA sequence encoder.
+        num_layers (int): number of layers for RNA sequence encoder.
+        latent_dim (int): latent (output) space dimension for RNA sequence
+            encoder.
+
+        training_kwarg (dict): training parameters in dict format,
+            which contains all the training parameters in get_encoder
+            function. Please refer to get_encoder for more details.
+
+        device (torch.device): torch device indicating where to train:
+            either on CPU or GPU. Note that this function does not support
+            multi-GPU yet.
+        verbose (bool): indicator for training epoch log on terminal.
+        rand_state (int): random seed used for layer initialization,
+            training/validation splitting, and all other processes that
+            requires randomness.
+
+    Returns:
+        torch.nn.Module: encoder for RNA sequence dataframe.
+    """
 
     gene_encoder_name = 'gene_net(%i*%i=>%i, %s, scaling=%s).pt' % \
                         (layer_dim, num_layers, latent_dim,
@@ -261,6 +347,51 @@ def get_drug_encoder(
         device: torch.device = torch.device('cuda'),
         verbose: bool = True,
         rand_state: int = 0, ):
+    """drug_encoder = get_gene_encoder(./models/', './data/',
+               'both', 'std', 0.,  True, 1000, 3, 100, training_kwarg_dict)
+
+    This function takes arguments about drug feature encoder and return the
+    corresponding encoders. It will execute one of the following based on
+    parameters and previous saved models:
+        * simply initialize a new encoder;
+        * load existing autoencoder and return the encoder part;
+        * train a new autoencoder and return the encoder part;
+
+    Note that this function requires existing dataframes of drug feature.
+
+
+    Args:
+        model_folder (str): path to the model folder.
+        data_folder (str): path to data folder (root).
+
+        drug_feature_usage (str): Drug feature usage used. Choose between
+            'fingerprint', 'descriptor', or 'both'.
+        descriptor_scaling (str): Scaling method for drug feature data.
+        nan_threshold (float): ratio of NaN values allowed for drug
+            features. Unqualified columns and rows will be dropped.
+
+        autoencoder_init (bool): indicator for using autoencoder as drug
+            feature encoder initialization method.
+        layer_dim (int): layer dimension for drug feature encoder.
+        num_layers (int): number of layers for drug feature encoder.
+        latent_dim (int): latent (output) space dimension for drug feature
+            encoder.
+
+        training_kwarg (dict): training parameters in dict format,
+            which contains all the training parameters in get_encoder
+            function. Please refer to get_encoder for more details.
+
+        device (torch.device): torch device indicating where to train:
+            either on CPU or GPU. Note that this function does not support
+            multi-GPU yet.
+        verbose (bool): indicator for training epoch log on terminal.
+        rand_state (int): random seed used for layer initialization,
+            training/validation splitting, and all other processes that
+            requires randomness.
+
+    Returns:
+        torch.nn.Module: encoder for drug feature dataframe.
+    """
 
     drug_encoder_name = 'drug_net(%i*%i=>%i, %s, descriptor_scaling=%s, ' \
                         'nan_thresh=%.2f).pt' % \
@@ -270,14 +401,14 @@ def get_drug_encoder(
 
     # Load drug dataframe
     drug_fingerprint_df_filename = 'drug_fingerprint_df(dtype=int8).pkl'
-    drug_fingerprint_df_path = os.path.join(data_folder,
+    drug_fingerprint_df_path = os.path.join(data_folder, 'processed',
                                             drug_fingerprint_df_filename)
     drug_fingerprint_df = pd.read_pickle(drug_fingerprint_df_path)
 
     drug_descriptor_df_filename = \
         'drug_descriptor_df(scaling=%s, nan_thresh=%.2f, dtype=float16).pkl' \
         % (descriptor_scaling, nan_threshold)
-    drug_descriptor_df_path = os.path.join(data_folder,
+    drug_descriptor_df_path = os.path.join(data_folder, 'processed',
                                            drug_descriptor_df_filename)
     drug_descriptor_df = pd.read_pickle(drug_descriptor_df_path)
 
@@ -309,13 +440,15 @@ def get_drug_encoder(
 
 if __name__ == '__main__':
 
+    logging.basicConfig(level=logging.DEBUG)
+
     # Test code for autoencoder with RNA sequence and drug features
     ae_training_kwarg = {
         'ae_loss_func': 'mse',
-        'ae_opt': 'adam',
-        'ae_lr': 1e-3,
-        'lr_decay_factor': 0.95,
-        'max_num_epochs': 10,
+        'ae_opt': 'sgd',
+        'ae_lr': 2e-1,
+        'lr_decay_factor': 0.995,
+        'max_num_epochs': 1000,
         'early_stop_patience': 50, }
 
     gene_encoder = get_gene_encoder(
@@ -345,9 +478,9 @@ if __name__ == '__main__':
         nan_threshold=0.0,
 
         autoencoder_init=True,
-        layer_dim=1024,
+        layer_dim=4096,
         num_layers=2,
-        latent_dim=256,
+        latent_dim=1024,
 
         training_kwarg=ae_training_kwarg,
 

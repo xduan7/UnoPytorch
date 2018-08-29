@@ -83,7 +83,7 @@ class RNASeqDataset(data.Dataset):
 
             # Partitioning (train/validation) and data usage settings
             rnaseq_feature_usage: str = 'combat',
-            validation_size: float = 0.2, ):
+            validation_ratio: float = 0.2, ):
 
         # Initialization ######################################################
         self.__data_folder = data_folder
@@ -117,7 +117,7 @@ class RNASeqDataset(data.Dataset):
         self.__rnaseq_scaling = rnaseq_scaling.lower()
 
         self.__rnaseq_feature_usage = rnaseq_feature_usage
-        self.__validation_size = validation_size
+        self.__validation_ratio = validation_ratio
 
         # Download (if necessary) #############################################
         download_files(filenames=FILENAMES,
@@ -325,7 +325,7 @@ class RNASeqDataset(data.Dataset):
 
         training_cl_df, validation_cl_df = \
             train_test_split(self.__cl_df,
-                             test_size=self.__validation_size,
+                             test_size=self.__validation_ratio,
                              stratify=self.__cl_df['type'].tolist(),
                              random_state=self.__rand_state)
 
