@@ -97,6 +97,8 @@ Training Epoch   2:
 ```
 
 For default hyper parameters, the transfer learning matrix results are shown below:
-<img src="https://github.com/xduan7/UnoPytorch/blob/master/images/default_results.jpg" width="100%">
+<p align="center">
+	<img src="https://github.com/xduan7/UnoPytorch/blob/master/images/default_results.jpg" width="80%">
+</p>
 
 Note that the green cells represents R2 score of higher than 0.1, red cells are R2 scores lower than -0.1 and yellows are for all the values in between. 
