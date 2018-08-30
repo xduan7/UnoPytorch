@@ -158,7 +158,7 @@ class RNASeqDataset(data.Dataset):
         self.__split_drug_resp()
 
         # Converting dataframes to arrays for rapid access ####################
-        self.__cl_array = self.__cl_df.values.astype(self.__float_dtype)
+        self.__cl_array = self.__cl_df.values
 
         # Public attributes ###################################################
         self.cells = self.__cl_df.index.tolist()

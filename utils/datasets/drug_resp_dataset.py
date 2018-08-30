@@ -10,6 +10,7 @@
     TODO:
     * optimizing __getitem__ method for multiprocess data retrieval.
 """
+
 import os
 import errno
 import logging
@@ -286,21 +287,17 @@ class DrugRespDataset(data.Dataset):
         # multiprocessing reasons. Chances are that during the run, one of
         # the workers might hang and prevents the training from moving on
 
+        # Using lock to retrieve data from memory
         self.__lock.acquire()
-
         drug_resp = self.__drug_resp_array[index]
+        drug_feature = self.__drug_feature_dict[drug_resp[1]]
+        rnaseq = self.__rnaseq_dict[drug_resp[2]]
+        self.__lock.release()
 
-        drug_feature = np.array(
-            self.__drug_feature_dict[drug_resp[1]],
-            dtype=self.__output_dtype)
-        rnaseq = np.array(
-            self.__rnaseq_dict[drug_resp[2]],
-            dtype=self.__output_dtype)
-
+        drug_feature = drug_feature.astype(self.__output_dtype)
+        rnaseq = rnaseq.astype(self.__output_dtype)
         concentration = np.array([drug_resp[3]], dtype=self.__output_dtype)
         growth = np.array([drug_resp[4]], dtype=self.__output_dtype)
-
-        self.__lock.release()
 
         return rnaseq, drug_feature, concentration, growth
 
@@ -981,8 +978,7 @@ if __name__ == '__main__':
     data_gen = DrugRespDataset(
         data_folder='../../data/',
         data_source='NCI60',
-        training=True,
-    rand_state=2)
+        training=True, )
 
     num_operations = 10000
     start_time = time.time()

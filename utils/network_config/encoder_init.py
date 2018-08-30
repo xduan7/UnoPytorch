@@ -142,8 +142,7 @@ def get_encoder(
                                       shuffle=True)
     dataloader_kwargs = {
         'shuffle': 'True',
-        'num_workers': multiprocessing.cpu_count()
-        if device == torch.device('cuda') else 0,
+        'num_workers': 4 if device == torch.device('cuda') else 0,
         'pin_memory': True if device == torch.device('cuda') else False, }
 
     trn_dataloader = DataLoader(DataFrameDataset(trn_df),
@@ -478,9 +477,9 @@ if __name__ == '__main__':
         nan_threshold=0.0,
 
         autoencoder_init=True,
-        layer_dim=2048,
+        layer_dim=4096,
         num_layers=2,
-        latent_dim=512,
+        latent_dim=2048,
 
         training_kwarg=ae_training_kwarg,
 

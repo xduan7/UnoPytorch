@@ -10,6 +10,7 @@
 
 import argparse
 import json
+import multiprocessing
 import time
 
 import numpy as np
@@ -325,9 +326,6 @@ def main():
                         help='maximum number of epochs')
 
     # Miscellaneous settings ##################################################
-    parser.add_argument('--precision', type=str, default='full',
-                        help='neural network and dataset precision',
-                        choices=['full', 'half', ])
     parser.add_argument('--multi_gpu', action='store_true', default=False,
                         help='enables multiple GPU process')
     parser.add_argument('--no_cuda', action='store_true', default=False,
@@ -347,8 +345,10 @@ def main():
 
     # Data loaders for training/validation ####################################
     dataloader_kwargs = {
+        'timeout': 1,
         'shuffle': 'True',
         # 'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
+        'num_workers': 4 if use_cuda else 0,
         'pin_memory': True if use_cuda else False, }
 
     # Drug response dataloaders for training/validation
@@ -359,7 +359,7 @@ def main():
 
         'int_dtype': np.int8,
         'float_dtype': np.float16,
-        'output_dtype': np.float16 if args.precision == 'half' else np.float32,
+        'output_dtype': np.float32,
 
         'growth_scaling': args.growth_scaling,
         'descriptor_scaling': args.descriptor_scaling,
@@ -395,7 +395,7 @@ def main():
 
         'int_dtype': np.int8,
         'float_dtype': np.float16,
-        'output_dtype': np.float16 if args.precision == 'half' else np.float32,
+        'output_dtype': np.float32,
 
         'rnaseq_scaling': args.rnaseq_scaling,
 
@@ -473,7 +473,7 @@ def main():
 
     # Sequence classifier for category, site, and type
     clf_net_kwargs = {
-        'encoder': gene_encoder.encoder,
+        'encoder': gene_encoder,
         'condition_dim': rna_seq_trn_loader.dataset.num_data_src,
         'latent_dim': args.gene_latent_dim,
         'layer_dim': args.clf_layer_dim,

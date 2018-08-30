@@ -41,103 +41,102 @@ if __name__ == '__main__':
     # for rnaseq_feature in ['source_scale', 'combat']:
     rnaseq_feature = 'source_scale'
 
-    for resp_lr, resp_loss in zip(['1e-5'], ['mse']):
+    # for resp_lr, resp_loss in zip(['1e-5'], ['mse']):
 
-        for param_dict in param_dict_list:
+    for param_dict in param_dict_list:
 
-            # Try until the models are successfully trained
+        # Try until the models are successfully trained
 
-            # module_finished = False
-            # while not module_finished:
+        # module_finished = False
+        # while not module_finished:
 
-            now = datetime.datetime.now()
+        now = datetime.datetime.now()
 
-            # Save log with name = (training data source + time)
-            tee = Tee('./results/logs/' + rnaseq_feature +
-                      '/%s_(%02d%02d_%02d%02d).txt'
-                      % (param_dict['trn_src'],
-                         now.month, now.day, now.hour, now.minute))
-            sys.stdout = tee
+        # Save log with name = (training data source + time)
+        tee = Tee('./results/logs/' + rnaseq_feature +
+                  '/%s_(%02d%02d_%02d%02d).txt'
+                  % (param_dict['trn_src'],
+                     now.month, now.day, now.hour, now.minute))
+        sys.stdout = tee
 
-            sys.argv = [
-                'uno_pytorch',
+        sys.argv = [
+            'uno_pytorch',
 
-                # Dataset parameters ######################################
-                # Training and validation data sources
-                '--trn_src', *param_dict['trn_src'],
-                '--val_srcs', *param_dict['val_srcs'],
+            # Dataset parameters ######################################
+            # Training and validation data sources
+            '--trn_src', *param_dict['trn_src'],
+            '--val_srcs', *param_dict['val_srcs'],
 
-                # Pre-processing for dataframes
-                '--growth_scaling', 'none',
-                '--descriptor_scaling', 'std',
-                '--rnaseq_scaling', 'std',
-                '--nan_threshold', '0.0',
+            # Pre-processing for dataframes
+            '--growth_scaling', 'none',
+            '--descriptor_scaling', 'std',
+            '--rnaseq_scaling', 'std',
+            '--nan_threshold', '0.0',
 
-                # Feature usage and partitioning settings
-                '--rnaseq_feature_usage', rnaseq_feature,
-                '--drug_feature_usage', 'both',
-                '--validation_ratio', '0.15',
-                # '--disjoint_drugs',
-                '--disjoint_cells',
+            # Feature usage and partitioning settings
+            '--rnaseq_feature_usage', rnaseq_feature,
+            '--drug_feature_usage', 'both',
+            '--validation_ratio', '0.15',
+            # '--disjoint_drugs',
+            '--disjoint_cells',
 
-                # Network configuration ###################################
-                # Encoders for drug features and RNA sequence
-                '--gene_layer_dim', '1024',
-                '--gene_num_layers', '2',
-                '--gene_latent_dim', '256',
+            # Network configuration ###################################
+            # Encoders for drug features and RNA sequence
+            '--gene_layer_dim', '1024',
+            '--gene_num_layers', '2',
+            '--gene_latent_dim', '1024',
 
-                '--drug_layer_dim', '4096',
-                '--drug_num_layers', '2',
-                '--drug_latent_dim', '1024',
+            '--drug_layer_dim', '4096',
+            '--drug_num_layers', '2',
+            '--drug_latent_dim', '4096',
 
-                # Using autoencoder for drug/sequence encoder init
-                '--autoencoder_init',
+            # Using autoencoder for drug/sequence encoder init
+            '--autoencoder_init',
 
-                # Drug response regression network
-                '--resp_layer_dim', '1024',
-                '--resp_num_layers', '2',
-                '--resp_dropout', '0.0',
-                '--resp_num_blocks', '4',
-                '--resp_activation', 'none',
+            # Drug response regression network
+            '--resp_layer_dim', '4096',
+            '--resp_num_layers', '2',
+            '--resp_dropout', '0.0',
+            '--resp_num_blocks', '4',
+            '--resp_activation', 'none',
 
-                # RNA sequence classification network(s)
-                '--clf_layer_dim', '32',
-                '--clf_num_layers', '1',
+            # RNA sequence classification network(s)
+            '--clf_layer_dim', '256',
+            '--clf_num_layers', '1',
 
-                # Training and validation parameters ######################
-                # Drug response regression training parameters
-                '--resp_loss_func', resp_loss,
-                '--resp_opt', 'SGD',
-                '--resp_lr', resp_lr,
+            # Training and validation parameters ######################
+            # Drug response regression training parameters
+            '--resp_loss_func', 'mse',
+            '--resp_opt', 'SGD',
+            '--resp_lr', '1e-5',
 
-                # Starting epoch for drug response validation
-                '--resp_val_start_epoch', '0',
+            # Starting epoch for drug response validation
+            '--resp_val_start_epoch', '0',
 
-                # Early stopping based on R2 score of drug response
-                '--early_stop_patience', '10',
+            # Early stopping based on R2 score of drug response
+            '--early_stop_patience', '10',
 
-                # RNA sequence classification training parameters
-                '--clf_opt', 'SGD',
-                '--clf_lr', '1e-3',
+            # RNA sequence classification training parameters
+            '--clf_opt', 'SGD',
+            '--clf_lr', '1e-3',
 
-                # Global/shared training parameters
-                '--decay_factor', '0.95',
-                '--trn_batch_size', '32',
-                '--val_batch_size', '256',
-                '--max_num_batches', '1000',
-                '--max_num_epochs', '100',
+            # Global/shared training parameters
+            '--decay_factor', '0.98',
+            '--trn_batch_size', '32',
+            '--val_batch_size', '256',
+            '--max_num_batches', '1000',
+            '--max_num_epochs', '100',
 
-                # Miscellaneous settings ##################################
-                '--precision', 'full',
-                # '--multi_gpu'
-                # '--no_cuda'
-                '--rand_state', '0', ]
+            # Miscellaneous settings ##################################
+            # '--multi_gpu'
+            # '--no_cuda'
+            '--rand_state', '0', ]
 
-            runpy.run_module('uno_pytorch')
+        runpy.run_module('uno_pytorch')
 
-            # module_finished = True
-            # except Exception as e:
-            #     print('Encountering Exception %s' % e)
-            #     print('Re-initiate a new run ...')
+        # module_finished = True
+        # except Exception as e:
+        #     print('Encountering Exception %s' % e)
+        #     print('Re-initiate a new run ...')
 
-            sys.stdout = tee.default_stdout()
+        sys.stdout = tee.default_stdout()
