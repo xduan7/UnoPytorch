@@ -7,22 +7,31 @@
     File Description:   
 
 """
-
+import errno
 import os
 import urllib
 import logging
 
+FTP_ROOT = 'http://ftp.mcs.anl.gov/pub/candle/public/' \
+           'benchmarks/Pilot1/combo/'
 
 logger = logging.getLogger(__name__)
 
 
-def download_files(
-        filenames: str or iter,
-        ftp_root: str,
-        target_folder: str, ):
+def download_files(filenames: str or iter,
+                   target_folder: str,
+                   ftp_root: str = FTP_ROOT, ):
 
     if type(filenames) is str:
         filenames = [filenames, ]
+
+    # Create  target folder if not exist
+    try:
+        os.makedirs(target_folder)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            logger.error('Failed to create data folders', exc_info=True)
+            raise
 
     # Download each file in the list
     for filename in filenames:

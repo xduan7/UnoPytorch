@@ -24,6 +24,8 @@ import pandas as pd
 import torch.utils.data as data
 from sklearn.model_selection import train_test_split
 
+from utils.data_processing.dataframe_loading import get_drug_resp_df, \
+    get_drug_feature_df, get_rna_seq_df
 from utils.data_processing.dataframe_to_dict import df_to_dict
 from utils.miscellaneous.file_downloading import download_files
 from utils.data_processing.dataframe_scaling import scale_dataframe
@@ -39,7 +41,6 @@ DRUG_RESP_FILENAME = 'rescaled_combined_single_drug_growth'
 ECFP_FILENAME = 'pan_drugs_dragon7_ECFP.tsv'
 PFP_FILENAME = 'pan_drugs_dragon7_PFP.tsv'
 DESCRIPTOR_FILENAME = 'pan_drugs_dragon7_descriptors.tsv'
-DRUG_INFO_FILENAME = 'drug_info'
 CL_METADATA = 'combined_cl_metadata'
 RNASEQ_SOURCE_SCALE_FILENAME = 'combined_rnaseq_data_lincs1000_source_scale'
 RNASEQ_COMBAT_FILENAME = 'combined_rnaseq_data_lincs1000_combat'
@@ -48,7 +49,6 @@ RNASEQ_COMBAT_FILENAME = 'combined_rnaseq_data_lincs1000_combat'
 FILENAMES = [
     DRUG_RESP_FILENAME,
 
-    DRUG_INFO_FILENAME,
     ECFP_FILENAME,
     PFP_FILENAME,
     DESCRIPTOR_FILENAME,
@@ -59,7 +59,7 @@ FILENAMES = [
 
 # Local folders in data root
 RAW_FOLDER = './raw/'
-PROCESSED_FOLDER = './processed/'
+PROC_FOLDER = './processed/'
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class DrugRespDataset(data.Dataset):
     def __init__(
 
             self,
-            data_folder: str,
+            data_root: str,
             data_source: str,
             training: bool,
             rand_state: int = 0,
@@ -103,9 +103,9 @@ class DrugRespDataset(data.Dataset):
 
             # Pre-processing settings
             growth_scaling: str = 'none',
-            descriptor_scaling: str = 'std',
+            dscptr_scaling: str = 'std',
             rnaseq_scaling: str = 'std',
-            nan_threshold: float = 0.0,
+            dscptr_nan_threshold: float = 0.0,
 
             # Partitioning (train/validation) and data usage settings
             rnaseq_feature_usage: str = 'source_scale',
@@ -122,7 +122,7 @@ class DrugRespDataset(data.Dataset):
             * Public attributes and other preparations.
 
         Args:
-            data_folder (str): path to data folder.
+            data_root (str): path to data folder.
             data_source (str): data source for drug response, must be one of
                 'NCI60', 'CTRP', 'GDSC', 'CCLE', and 'gCSI'.
             training (bool): indicator for training.
@@ -138,13 +138,14 @@ class DrugRespDataset(data.Dataset):
 
             growth_scaling (str): scaling method for drug response growth.
                 Choose between 'none', 'std', and 'minmax'.
-            descriptor_scaling (str): scaling method for drug descriptor.
+            dscptr_scaling (str): scaling method for drug descriptor.
                 Choose between 'none', 'std', and 'minmax'.
             rnaseq_scaling (str): scaling method for RNA sequence (LINCS1K).
                 Choose between 'none', 'std', and 'minmax'.
-            nan_threshold (float): NaN threshold for drug descriptor. If a
-                column/feature or row/drug contains exceeding amount of NaN
-                comparing to the threshold, the feature/drug will be dropped.
+            dscptr_nan_threshold (float): NaN threshold for drug descriptor.
+                If a column/feature or row/drug contains exceeding amount of
+                NaN comparing to the threshold, the feature/drug will be
+                dropped.
 
 
             rnaseq_feature_usage (str): RNA sequence usage. Choose between
@@ -166,21 +167,7 @@ class DrugRespDataset(data.Dataset):
         """
 
         # Initialization ######################################################
-        self.__data_folder = data_folder
-        self.__raw_data_folder = \
-            os.path.join(self.__data_folder, RAW_FOLDER)
-        self.__processed_data_folder = \
-            os.path.join(self.__data_folder, PROCESSED_FOLDER)
-
-        logger.info('Creating raw & processed data folder ... ')
-        for folder in [self.__raw_data_folder, self.__processed_data_folder]:
-            try:
-                os.makedirs(folder)
-            except OSError as e:
-                if e.errno != errno.EEXIST:
-                    logger.error('Failed to create data folders',
-                                 exc_info=True)
-                    raise
+        self.__data_root = data_root
 
         # Class-wise variables
         self.data_source = data_source
@@ -188,42 +175,51 @@ class DrugRespDataset(data.Dataset):
         self.__rand_state = rand_state
 
         self.__int_dtype = int_dtype
-        self.__int_dtype_str = str(int_dtype).split('\'')[1].split('.')[-1]
         self.__float_dtype = float_dtype
-        self.__float_dtype_str = str(float_dtype).split('\'')[1].split('.')[-1]
         self.__output_dtype = output_dtype
 
         # Feature scaling
         if growth_scaling is None or growth_scaling == '':
             growth_scaling = 'none'
-        self.__growth_scaling = growth_scaling.lower()
-        if descriptor_scaling is None or descriptor_scaling == '':
-            self.__descriptor_scaling = 'none'
-        self.__descriptor_scaling = descriptor_scaling
+        growth_scaling = growth_scaling.lower()
+        if dscptr_scaling is None or dscptr_scaling == '':
+            dscptr_scaling = 'none'
+        dscptr_scaling = dscptr_scaling
         if rnaseq_scaling is None or rnaseq_scaling == '':
-            self.__rnaseq_scaling = 'none'
-        self.__rnaseq_scaling = rnaseq_scaling
+            rnaseq_scaling = 'none'
+        rnaseq_scaling = rnaseq_scaling
 
-        self.__nan_threshold = nan_threshold
-
-        self.__rnaseq_feature_usage = rnaseq_feature_usage
-        self.__drug_feature_usage = drug_feature_usage
         self.__validation_ratio = validation_ratio
         self.__disjoint_drugs = disjoint_drugs
         self.__disjoint_cells = disjoint_cells
 
-        # Download (if necessary) #############################################
-        download_files(filenames=FILENAMES,
-                       ftp_root=FTP_ROOT,
-                       target_folder=self.__raw_data_folder)
+        # Load all dataframes #################################################
+        self.__drug_resp_df = get_drug_resp_df(
+            data_root=data_root,
+            scaling=growth_scaling,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype)
 
-        # Processing and load dataframes ######################################
-        self.__drug_resp_df = self.__process_drug_resp()
-        self.__drug_feature_df = self.__process_drug_feature()
-        self.__rnaseq_df = self.__process_rnaseq()
+        self.__drug_feature_df = get_drug_feature_df(
+            data_root=data_root,
+            feature_usage=drug_feature_usage,
+            dscptr_scaling=dscptr_scaling,
+            dscptr_nan_thresh=dscptr_nan_threshold,
+            int_dtype=int_dtype,
+            float_dtype=float_dtype)
+
+        self.__rnaseq_df = get_rna_seq_df(
+            data_root=data_root,
+            feature_usage=rnaseq_feature_usage,
+            scaling=rnaseq_scaling,
+            float_dtype=float_dtype)
 
         # Trim the dataframes so that they share the same drugs/cells
+        print(len(self.__drug_resp_df))
         self.__trim_dataframes(trim_data_source=False)
+
+        print(len(self.__drug_resp_df))
+
 
         # Train/validation split ##############################################
         self.__split_drug_resp()
@@ -301,237 +297,6 @@ class DrugRespDataset(data.Dataset):
 
         return rnaseq, drug_feature, concentration, growth
 
-    def __process_drug_resp(self):
-        """self.__process_drug_resp()
-
-        This function reads from the raw drug response file and process it
-        into dataframe as return.
-        During the processing, the data sources will be converted to
-        numeric and the the growth might be scaled accordingly.
-
-        Returns:
-            pd.DataFrame: whole drug response dataframe from source file.
-        """
-
-        logger.info('Processing drug response dataframe ... ')
-
-        drug_resp_df_filename = \
-            'drug_resp_df(growth_scaling=%s, dtype=%s).pkl' \
-            % (self.__growth_scaling, self.__float_dtype_str)
-        drug_resp_df_path = \
-            os.path.join(self.__processed_data_folder, drug_resp_df_filename)
-
-        # If the dataframe already exists, read and return
-        if os.path.exists(drug_resp_df_path):
-            return pd.read_pickle(drug_resp_df_path)
-
-        # Otherwise load from raw files and process correspondingly
-        drug_resp_df = pd.read_csv(
-            os.path.join(self.__raw_data_folder, DRUG_RESP_FILENAME),
-            sep='\t',
-            header=0,
-            index_col=None,
-            usecols=[0, 1, 2, 4, 6, ],
-            dtype=str)
-
-        # Encode data sources into numeric
-        data_src_dict_path = os.path.join(
-            self.__processed_data_folder, 'data_src_dict.json')
-        drug_resp_df['SOURCE'], _ = encode_label_to_int(
-            drug_resp_df['SOURCE'], data_src_dict_path)
-
-        # Scaling the growth
-        drug_resp_df['GROWTH'] = scale_dataframe(
-            drug_resp_df['GROWTH'], self.__growth_scaling)
-
-        # Convert data source, concentration and growth to numeric
-        drug_resp_df[drug_resp_df.columns[0]] = \
-            drug_resp_df[drug_resp_df.columns[0]].astype(self.__float_dtype)
-        drug_resp_df[drug_resp_df.columns[3:]] = \
-            drug_resp_df[drug_resp_df.columns[3:]].astype(self.__float_dtype)
-
-        # Save the dataframe into processed folder
-        drug_resp_df.to_pickle(drug_resp_df_path)
-        return drug_resp_df
-
-    def __process_drug_feature(self):
-        """self.__process_drug_feature()
-
-        This function reads from the raw drug feature files (fingerprint
-        and/or descriptor) and process it into dataframe as return.
-
-        Returns:
-            pd.DataFrame: whole drug feature dataframe from source file.
-        """
-
-        logger.info('Processing drug feature dataframe(s) ... ')
-
-        if self.__drug_feature_usage == 'both':
-            return pd.concat([self.__process_drug_fingerprint(),
-                              self.__process_drug_descriptor()],
-                             axis=1, join='inner')
-        elif self.__drug_feature_usage == 'fingerprint':
-            return self.__process_drug_fingerprint()
-        elif self.__drug_feature_usage == 'descriptor':
-            return self.__process_drug_descriptor()
-        else:
-            logger.error('Drug feature must be \'fingerprint\', \'descriptor\''
-                         ', or \'both\',', exc_info=True)
-            raise ValueError('Undefined drug feature %s.'
-                             % self.__drug_feature_usage)
-
-    def __process_drug_fingerprint(self):
-        """self.__process_drug_fingerprint()
-
-        This function reads from the raw drug fingerprint file and process it
-        into dataframe as return.
-
-        Returns:
-            pd.DataFrame: whole drug fingerprint dataframe.
-        """
-
-        logger.info('Processing drug fingerprint dataframe ... ')
-
-        drug_fingerprint_df_filename = \
-            'drug_fingerprint_df(dtype=%s).pkl' % self.__int_dtype_str
-        drug_fingerprint_df_path = os.path.join(self.__processed_data_folder,
-                                                drug_fingerprint_df_filename)
-
-        # If the dataframe already exists, read and return
-        if os.path.exists(drug_fingerprint_df_path):
-            return pd.read_pickle(drug_fingerprint_df_path)
-
-        ecfp_df = pd.read_csv(
-            os.path.join(self.__raw_data_folder, ECFP_FILENAME),
-            sep='\t',
-            header=None,
-            index_col=0,
-            dtype=str,
-            skiprows=[0, ]).astype(self.__int_dtype)
-
-        pfp_df = pd.read_csv(
-            os.path.join(self.__raw_data_folder, PFP_FILENAME),
-            sep='\t',
-            header=None,
-            index_col=0,
-            dtype=str,
-            skiprows=[0, ]).astype(self.__int_dtype)
-
-        drug_fingerprint_df = \
-            pd.concat([ecfp_df, pfp_df], axis=1, join='inner')
-
-        # Save the dataframe into processed folder
-        drug_fingerprint_df.to_pickle(drug_fingerprint_df_path)
-
-        return drug_fingerprint_df
-
-    def __process_drug_descriptor(self):
-        """self.__process_drug_descriptor()
-
-        This function reads from the raw drug descriptor file and process it
-        into dataframe as return.
-        During the processing, columns (features) and rows (drugs) with
-        exceeding percentage of NaN values will be dropped. And the feature
-        will be scaled accordingly.
-
-        Returns:
-            pd.DataFrame: whole drug descriptor dataframe.
-        """
-
-        logger.info('Processing drug descriptor dataframe ... ')
-
-        drug_descriptor_df_filename = \
-            'drug_descriptor_df(scaling=%s, nan_thresh=%.2f, dtype=%s).pkl' \
-            % (self.__descriptor_scaling,
-               self.__nan_threshold,
-               self.__float_dtype_str)
-        drug_descriptor_df_path = os.path.join(self.__processed_data_folder,
-                                               drug_descriptor_df_filename)
-
-        # If the dataframe already exists, read and return
-        if os.path.exists(drug_descriptor_df_path):
-            return pd.read_pickle(drug_descriptor_df_path)
-
-        # Note that np.float64 is used to prevent overflow
-        drug_descriptor_df = pd.read_csv(
-            os.path.join(self.__raw_data_folder, DESCRIPTOR_FILENAME),
-            sep='\t',
-            header=0,
-            index_col=0,
-            na_values='na',
-            dtype=str).astype(np.float64)
-
-        # Drop NaN values if the percentage of NaN exceeds nan_threshold
-        logger.debug('Dropping NaN values for descriptors ...')
-
-        valid_thresh = 1 - self.__nan_threshold
-
-        drug_descriptor_df.dropna(
-            axis=1, inplace=True,
-            thresh=int(drug_descriptor_df.shape[0] * valid_thresh))
-
-        drug_descriptor_df.dropna(
-            axis=0, inplace=True,
-            thresh=int(drug_descriptor_df.shape[1] * valid_thresh))
-
-        # Fill the rest of NaN with column means
-        drug_descriptor_df.fillna(drug_descriptor_df.mean(), inplace=True)
-
-        # Scaling the descriptor
-        logger.debug('Scaling drug descriptors ...')
-        drug_descriptor_df = scale_dataframe(
-            drug_descriptor_df, self.__descriptor_scaling)
-
-        # Convert to the proper data type and save
-        drug_descriptor_df \
-            = drug_descriptor_df.astype(self.__float_dtype)
-        drug_descriptor_df.to_pickle(drug_descriptor_df_path)
-
-    def __process_rnaseq(self):
-        """self.__process_rnaseq()
-
-        This function reads from cell line RNA sequence file and process it
-        into dataframe as return.
-
-        Returns:
-            pd.DataFrame: whole RNA sequence dataframe.
-        """
-
-        logger.info('Processing RNA sequence dataframe ... ')
-
-        if self.__rnaseq_feature_usage == 'source_scale':
-            rnaseq_raw_filename = RNASEQ_SOURCE_SCALE_FILENAME
-        elif self.__rnaseq_feature_usage == 'combat':
-            rnaseq_raw_filename = RNASEQ_COMBAT_FILENAME
-        else:
-            logger.error('Unknown RNA feature %s.'
-                         % self.__rnaseq_feature_usage, exc_info=True)
-            raise ValueError('RNA feature usage must be one of '
-                             '\'source_scale\' or \'combat\'.')
-
-        rnaseq_df_filename = 'rnaseq_df(%s, scaling=%s, dtype=%s).pkl' \
-                             % (self.__rnaseq_feature_usage,
-                                self.__rnaseq_scaling,
-                                self.__float_dtype_str)
-        rnaseq_df_path = os.path.join(self.__processed_data_folder,
-                                      rnaseq_df_filename)
-
-        # If the dataframe already exists, read and return
-        if os.path.exists(rnaseq_df_path):
-            return pd.read_pickle(rnaseq_df_path)
-
-        # Construct and save the RNA seq dataframe
-        rnaseq_df = pd.read_csv(
-            os.path.join(self.__raw_data_folder, rnaseq_raw_filename),
-            sep='\t',
-            header=0,
-            index_col=0,
-            dtype=str).astype(self.__float_dtype)
-
-        rnaseq_df = scale_dataframe(rnaseq_df, self.__rnaseq_scaling)
-        rnaseq_df.to_pickle(rnaseq_df_path)
-        return rnaseq_df
-
     def __trim_dataframes(self, trim_data_source: bool=True):
         """self.__trim_dataframes(trim_data_source=True)
 
@@ -549,17 +314,14 @@ class DrugRespDataset(data.Dataset):
             None
         """
 
-        logger.info('Trimming dataframes ... ')
-
         # Encode the data source and take the data from target source only
         # Note that source could be 'NCI60', 'GDSC', etc and 'all'
         if (self.data_source.lower() != 'all') and trim_data_source:
 
-            logger.debug(
-                'Using drug responses from %s ... ' % self.data_source)
+            logger.debug('Using data from %s ... ' % self.data_source)
 
             data_src_dict = get_label_encoding_dict(os.path.join(
-                self.__processed_data_folder, 'data_src_dict.json'), None)
+                self.__data_root, PROC_FOLDER, 'data_src_dict.json'), None)
             try:
                 encoded_data_source = data_src_dict[self.data_source]
                 self.__drug_resp_df = self.__drug_resp_df.loc[
@@ -570,7 +332,7 @@ class DrugRespDataset(data.Dataset):
                 raise
 
         # Make sure that all three dataframes share the same drugs/cells
-        logger.debug('Trimming on the cell lines and drugs ... ')
+        logger.debug('Trimming the cell lines and drugs ... ')
 
         cell_set = set(self.__drug_resp_df['CELLNAME'].unique()) \
                    & set(self.__rnaseq_df.index.values)
@@ -588,9 +350,9 @@ class DrugRespDataset(data.Dataset):
         self.__drug_feature_df = self.__drug_feature_df[
             self.__drug_feature_df.index.isin(drug_set)]
 
-        logger.info('There are %i drugs and %i cell lines, with %i response '
-                    'records.' % (len(drug_set), len(cell_set),
-                                  len(self.__drug_resp_df)))
+        logger.debug('There are %i drugs and %i cell lines, with %i response '
+                     'records.' % (len(drug_set), len(cell_set),
+                                   len(self.__drug_resp_df)))
         return
 
     def __analyze_drugs(self):
@@ -874,8 +636,10 @@ class DrugRespDataset(data.Dataset):
         #         cell_list.remove(cell)
 
         drug_stratified_list = []
+        print(drug_list)
         for drug in drug_list:
             drug_stratified_list.append(drug_analysis_df.loc[drug].values)
+        print(drug_stratified_list)
 
         # Change validation size when both features are disjoint in splitting
         if self.__disjoint_cells and self.__disjoint_drugs:
@@ -976,8 +740,8 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     data_gen = DrugRespDataset(
-        data_folder='../../data/',
-        data_source='NCI60',
+        data_root='../../data/',
+        data_source='GDSC',
         training=True, )
 
     num_operations = 10000
