@@ -196,7 +196,7 @@ class DrugRespDataset(data.Dataset):
         # Load all dataframes #################################################
         self.__drug_resp_df = get_drug_resp_df(
             data_root=data_root,
-            scaling=growth_scaling,
+            grth_scaling=growth_scaling,
             int_dtype=int_dtype,
             float_dtype=float_dtype)
 
@@ -211,7 +211,7 @@ class DrugRespDataset(data.Dataset):
         self.__rnaseq_df = get_rna_seq_df(
             data_root=data_root,
             feature_usage=rnaseq_feature_usage,
-            scaling=rnaseq_scaling,
+            rnaseq_scaling=rnaseq_scaling,
             float_dtype=float_dtype)
 
         # Trim the dataframes so that they share the same drugs/cells

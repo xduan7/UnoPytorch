@@ -24,6 +24,8 @@ from utils.data_processing.label_encoding import encode_label_to_int
 from utils.miscellaneous.file_downloading import download_files
 
 logger = logging.getLogger(__name__)
+
+# Suppress warning for computing correlation between concentration and growth
 warnings.filterwarnings('ignore',
                         message='invalid value encountered in double_scalars')
 
@@ -148,12 +150,12 @@ def get_all_cells(data_root: str):
 def get_drug_resp_df(
         data_root: str,
 
-        scaling: str = 'none',
+        grth_scaling: str = 'none',
 
         int_dtype: type = np.int8,
         float_dtype: type = np.float32):
 
-    df_filename = 'drug_resp_df(scaling=%s).pkl' % scaling
+    df_filename = 'drug_resp_df(scaling=%s).pkl' % grth_scaling
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
 
     # If the dataframe already exists, load and continue ######################
@@ -181,7 +183,7 @@ def get_drug_resp_df(
         df['SOURCE'] = encode_label_to_int(df['SOURCE'], data_src_dict_path)
 
         # Scaling the growth with given scaling method
-        df['GROWTH'] = scale_dataframe(df['GROWTH'], scaling)
+        df['GROWTH'] = scale_dataframe(df['GROWTH'], grth_scaling)
 
         # Convert data type into generic python types
         df[['SOURCE']] = df[['SOURCE']].astype(int)
@@ -255,13 +257,13 @@ def get_drug_fgpt_df(
 def get_drug_dscptr_df(
         data_root: str,
 
-        scaling: str,
+        dscptr_scaling: str,
         nan_thresh: float,
 
         float_dtype: type = np.float32):
 
     df_filename = 'drug_dscptr_df(scaling=%s, nan_thresh=%.2f).pkl' \
-                  % (scaling, nan_thresh)
+                  % (dscptr_scaling, nan_thresh)
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
 
     # If the dataframe already exists, load and continue ######################
@@ -294,7 +296,7 @@ def get_drug_dscptr_df(
         df.fillna(df.mean(), inplace=True)
 
         # Scaling the descriptor with given scaling method
-        df = scale_dataframe(df, scaling)
+        df = scale_dataframe(df, dscptr_scaling)
 
         # Convert data type into generic python types
         df = df.astype(float)
@@ -328,7 +330,7 @@ def get_drug_feature_df(
         return pd.concat([get_drug_fgpt_df(data_root=data_root,
                                            int_dtype=int_dtype),
                           get_drug_dscptr_df(data_root=data_root,
-                                             scaling=dscptr_scaling,
+                                             dscptr_scaling=dscptr_scaling,
                                              nan_thresh=dscptr_nan_thresh,
                                              float_dtype=float_dtype)],
                          axis=1, join='inner')
@@ -337,7 +339,7 @@ def get_drug_feature_df(
                                 int_dtype=int_dtype)
     elif feature_usage == 'descriptor':
         return get_drug_dscptr_df(data_root=data_root,
-                                  scaling=dscptr_scaling,
+                                  dscptr_scaling=dscptr_scaling,
                                   nan_thresh=dscptr_nan_thresh,
                                   float_dtype=float_dtype)
     else:
@@ -350,11 +352,12 @@ def get_rna_seq_df(
         data_root: str,
 
         feature_usage: str,
-        scaling: str,
+        rnaseq_scaling: str,
 
         float_dtype: type = np.float32):
 
-    df_filename = 'rnaseq_df(%s, scaling=%s).pkl' % (feature_usage, scaling)
+    df_filename = 'rnaseq_df(%s, scaling=%s).pkl' \
+                  % (feature_usage, rnaseq_scaling)
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
 
     # If the dataframe already exists, load and continue ######################
@@ -386,7 +389,7 @@ def get_rna_seq_df(
             index_col=0)
 
         # Scaling the descriptor with given scaling method
-        df = scale_dataframe(df, scaling)
+        df = scale_dataframe(df, rnaseq_scaling)
 
         # Convert data type into generic python types
         df = df.astype(float)
@@ -405,11 +408,11 @@ def get_rna_seq_df(
 
 def get_combo_stats_df(
         data_root: str,
-        scaling: str,
+        grth_scaling: str,
         int_dtype: type = np.int8,
         float_dtype: type = np.float32):
 
-    df_filename = 'combo_stats_df(scaling=%s).pkl' % scaling
+    df_filename = 'combo_stats_df(scaling=%s).pkl' % grth_scaling
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
 
     # If the dataframe already exists, load and continue ######################
@@ -423,7 +426,7 @@ def get_combo_stats_df(
         # Load the whole drug response dataframe and create a combo column
         # Use generic python dtypes to minimize the error during processing
         drug_resp_df = get_drug_resp_df(data_root=data_root,
-                                        scaling=scaling,
+                                        grth_scaling=grth_scaling,
                                         int_dtype=int,
                                         float_dtype=float)
 
@@ -470,7 +473,10 @@ def get_combo_stats_df(
             conc_tuple = value[2]
             grth_tuple = value[3]
 
-            corr = stats.pearsonr(grth_tuple, conc_tuple)[0]
+            # This might throw warnings as var(growth) == 0 sometimes
+            # Fill NaN with 0 as there is no correlation in cases like this
+            corr = stats.pearsonr(conc_tuple, grth_tuple)[0]
+            corr = 0. if np.isnan(corr) else corr
 
             # ['DRUG_ID', 'CELLNAME','NUM_REC', 'AVG', 'VAR', 'CORR']
             row = [value[0], value[1], len(conc_tuple),
@@ -504,8 +510,6 @@ def get_drug_stats_df():
     pass
 
 
-
-
 if __name__ == '__main__':
 
     logging.basicConfig(level=logging.DEBUG)
@@ -524,7 +528,7 @@ if __name__ == '__main__':
     #                      feature_usage='source_scale',
     #                      scaling='std').head())
 
-    df = get_combo_stats_df(data_root='../../data/', scaling='none')
+    df = get_combo_stats_df(data_root='../../data/', grth_scaling='none')
     print(df.head())
     print(df.isnull().values.any())
 
