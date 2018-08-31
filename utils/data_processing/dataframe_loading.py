@@ -25,9 +25,9 @@ from utils.miscellaneous.file_downloading import download_files
 
 logger = logging.getLogger(__name__)
 
-# Suppress warning for computing correlation between concentration and growth
-warnings.filterwarnings('ignore',
-                        message='invalid value encountered in double_scalars')
+# Suppress warning for NaN correlation between concentration and growth
+warnings.filterwarnings('ignore', message=
+    'invalid value encountered in double_scalars')
 
 # Folders for raw/processed data
 RAW_FOLDER = './raw/'
@@ -206,6 +206,7 @@ def get_drug_resp_df(
 
 def get_drug_fgpt_df(
         data_root: str,
+
         int_dtype: type = np.int8):
 
     df_filename = 'drug_fgpt_df.pkl'
@@ -408,7 +409,9 @@ def get_rna_seq_df(
 
 def get_combo_stats_df(
         data_root: str,
+
         grth_scaling: str,
+
         int_dtype: type = np.int8,
         float_dtype: type = np.float32):
 
@@ -430,16 +433,15 @@ def get_combo_stats_df(
                                         int_dtype=int,
                                         float_dtype=float)
 
-        logger.debug('Limiting the dataframe with drugs and cell lines ... ')
-        drug_resp_df = drug_resp_df.loc[
-            (drug_resp_df['CELLNAME'].isin(get_all_cells(data_root))) &
-            (drug_resp_df['DRUG_ID'].isin(get_all_drugs(data_root)))]
+        # logger.debug('Limiting the dataframe with drugs and cell lines ... ')
+        # drug_resp_df = drug_resp_df.loc[
+        #     (drug_resp_df['CELLNAME'].isin(get_all_cells(data_root))) &
+        #     (drug_resp_df['DRUG_ID'].isin(get_all_drugs(data_root)))]
 
         logger.debug('Iterating through every drug + cell combinations ...')
 
         # The columns of drug response dataframe is
         # ['SOURCE', 'DRUG_ID', 'CELLNAME', 'LOG_CONCENTRATION', 'GROWTH']
-
         combo_dict = {}
 
         # Note that there are different ways of iterating the dataframe
@@ -488,9 +490,8 @@ def get_combo_stats_df(
         df = pd.DataFrame(combo_stats, columns=cols)
 
         # Convert data type into generic python types
-        df[['NUM_REC']] = df[['NUM_REC']].astype(int_dtype)
-        df[['AVG', 'VAR', 'CORR']] = \
-            df[['AVG', 'VAR', 'CORR']].astype(float_dtype)
+        df[['NUM_REC']] = df[['NUM_REC']].astype(int)
+        df[['AVG', 'VAR', 'CORR']] = df[['AVG', 'VAR', 'CORR']].astype(float)
 
         # save to disk for future usage
         try:
@@ -505,7 +506,33 @@ def get_combo_stats_df(
     return df
 
 
-def get_drug_stats_df():
+def get_drug_stats_df(
+        data_root: str,
+
+        grth_scaling: str,
+
+        int_dtype: type = np.int8,
+        float_dtype: type = np.float32):
+
+    df_filename = 'drug_stats_df(scaling=%s).pkl' % grth_scaling
+    df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
+
+    # If the dataframe already exists, load and continue ######################
+    if os.path.exists(df_path):
+        df = pd.read_pickle(df_path)
+
+    # Otherwise process combo statistics and save #############################
+    else:
+        logger.debug('Processing drug statics dataframe ... ')
+
+        # Load combo (drug + cell) dataframe to construct drug statistics
+        combo_stats_df = get_combo_stats_df(data_root=data_root,
+                                            grth_scaling=grth_scaling,
+                                            int_dtype=int,
+                                            float_dtype=float)
+
+        logger.debug('Iterating through every drug ...')
+
 
     pass
 
