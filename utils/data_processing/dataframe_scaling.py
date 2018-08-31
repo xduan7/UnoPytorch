@@ -33,11 +33,11 @@ def scale_dataframe(dataframe: pd.DataFrame,
     """
     scaling_method = scaling_method.lower()
 
-    if scaling_method == 'none':
+    if scaling_method.lower() == 'none':
         return dataframe
-    elif scaling_method == 'std':
+    elif scaling_method.lower() == 'std':
         scaler = StandardScaler()
-    elif scaling_method == 'minmax':
+    elif scaling_method.lower() == 'minmax':
         scaler = MinMaxScaler()
     else:
         logger.error('Unknown scaling method %s' % scaling_method,

@@ -373,7 +373,7 @@ def main():
         'disjoint_cells': args.disjoint_cells, }
 
     drug_resp_trn_loader = torch.utils.data.DataLoader(
-        DrugRespDataset(data_source=args.trn_src,
+        DrugRespDataset(data_src=args.trn_src,
                         training=True,
                         **drug_resp_dataset_kwargs),
         batch_size=args.trn_batch_size,
@@ -381,7 +381,7 @@ def main():
 
     # List of data loaders for different validation sets
     drug_resp_val_loaders = [torch.utils.data.DataLoader(
-        DrugRespDataset(data_source=src,
+        DrugRespDataset(data_src=src,
                         training=False,
                         **drug_resp_dataset_kwargs),
         batch_size=args.val_batch_size,

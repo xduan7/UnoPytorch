@@ -18,11 +18,12 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from scipy import stats
-
+import matplotlib.pyplot as plt
 
 from utils.data_processing.dataframe_scaling import scale_dataframe
 from utils.data_processing.label_encoding import encode_label_to_int
 from utils.miscellaneous.file_downloading import download_files
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ DRUG_RESP_FILENAME = 'rescaled_combined_single_drug_growth'
 ECFP_FILENAME = 'pan_drugs_dragon7_ECFP.tsv'
 PFP_FILENAME = 'pan_drugs_dragon7_PFP.tsv'
 DSCPTR_FILENAME = 'pan_drugs_dragon7_descriptors.tsv'
-CL_METADATA = 'combined_cl_metadata'
+CL_METADATA_FILENAME = 'combined_cl_metadata'
 RNASEQ_SOURCE_SCALE_FILENAME = 'combined_rnaseq_data_lincs1000_source_scale'
 RNASEQ_COMBAT_FILENAME = 'combined_rnaseq_data_lincs1000_combat'
 
@@ -143,6 +144,9 @@ def get_all_cells(data_root: str):
     # Takes the common elements from all 3 sets of cell lines
     cells = list(resp_cells & combat_cells & source_scale_cells)
 
+    # Delete '-', which could be inconsistent between seq and meta
+    cells = [c.replace('-', '') for c in cells]
+
     # save to disk for future usage
     try:
         os.makedirs(os.path.join(data_root, PROC_FOLDER))
@@ -184,10 +188,13 @@ def get_drug_resp_df(
             index_col=None,
             usecols=[0, 1, 2, 4, 6, ])
 
+        # Delete '-', which could be inconsistent between seq and meta
+        df['CELLNAME'] = df['CELLNAME'].str.replace('-', '')
+
         # Encode data sources into numeric
-        data_src_dict_path = os.path.join(data_root, PROC_FOLDER,
-                                          'data_src_dict.txt')
-        df['SOURCE'] = encode_label_to_int(df['SOURCE'], data_src_dict_path)
+        df['SOURCE'] = encode_label_to_int(data_root=data_root,
+                                           dict_name='data_src_dict.txt',
+                                           labels=df['SOURCE'].tolist())
 
         # Scaling the growth with given scaling method
         df['GROWTH'] = scale_dataframe(df['GROWTH'], grth_scaling)
@@ -393,6 +400,9 @@ def get_rna_seq_df(
             sep='\t',
             header=0,
             index_col=0)
+
+        # Delete '-', which could be inconsistent between seq and meta
+        df.index = df.index.str.replace('-', '')
 
         # Scaling the descriptor with given scaling method
         df = scale_dataframe(df, rnaseq_scaling)
@@ -601,6 +611,7 @@ def get_drug_stats_df(
         df[['NUM_CL', 'NUM_REC']] = df[['NUM_CL', 'NUM_REC']].astype(int)
         df[['AVG_GRTH', 'AVG_CORR']] = \
             df[['AVG_GRTH', 'AVG_CORR']].astype(float)
+        df.set_index('DRUG_ID', inplace=True)
 
         # save to disk for future usage
         try:
@@ -613,6 +624,143 @@ def get_drug_stats_df(
     df[['NUM_CL', 'NUM_REC']] = df[['NUM_CL', 'NUM_REC']].astype(int_dtype)
     df[['AVG_GRTH', 'AVG_CORR']] = \
         df[['AVG_GRTH', 'AVG_CORR']].astype(float_dtype)
+    return df
+
+
+def get_drug_anlys_df(data_root: str):
+    """
+
+    This function analyze drugs based their average growth and
+        dose-to-growth correlation.
+
+        The function will first calculate combo statistics if it does not
+        exist in the /data/processed/ folder.
+        For  each (drug + cell line) combo, it calculates average growth and
+        the correlation, then store the statistics in disk for future usage.
+
+        After obtaining the combo dataframe, the function will calculate the
+        same stats w.r.t. each drug if the data does not exist in the
+        /data/processed/ folder.
+
+        Then the single drug stats will be used to divide all the drugs into
+        4 different categories:
+            * high growth, high correlation
+            * high growth, low correlation
+            * low growth, high correlation
+            * low growth, low correlation
+
+
+    Args:
+        data_root:
+
+    Returns:
+
+    """
+
+    df_filename = 'drug_anlys_df.pkl'
+    df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
+
+    # If the dataframe already exists, load and return ########################
+    if os.path.exists(df_path):
+        return pd.read_pickle(df_path)
+
+    # Otherwise process combo statistics and save #############################
+    else:
+        logger.debug('Processing drug analysis dataframe ... ')
+
+        # Load drug statistics dataframe
+        # Note that the scaling of growth has nothing to do with the analysis
+        drug_stats_df = get_drug_stats_df(data_root=data_root,
+                                          grth_scaling='none',
+                                          int_dtype=int,
+                                          float_dtype=float)
+
+        drugs = drug_stats_df.index
+        avg_grth = drug_stats_df['AVG_GRTH'].values
+        avg_corr = drug_stats_df['AVG_CORR'].values
+
+        high_grth = (avg_grth > np.median(avg_grth))
+        high_corr = (avg_corr > np.median(avg_corr))
+
+        drug_analysis_array = \
+            np.array([drugs, high_grth, high_corr]).transpose()
+
+        # The returned dataframe will have two columns of boolean values,
+        # indicating four different categories.
+        df = pd.DataFrame(drug_analysis_array,
+                          columns=['DRUG_ID', 'HIGH_GROWTH', 'HIGH_CORR'])
+        df.set_index('DRUG_ID', inplace=True)
+
+        # save to disk for future usage
+        try:
+            os.makedirs(os.path.join(data_root, PROC_FOLDER))
+        except FileExistsError:
+            pass
+        df.to_pickle(df_path)
+
+        return df
+
+
+def get_cl_meta_df(
+        data_root: str,
+
+        int_dtype: type = np.int8):
+
+    df_filename = 'cl_meta_df.pkl'
+    df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
+
+    # If the dataframe already exists, load and continue ######################
+    if os.path.exists(df_path):
+        df = pd.read_pickle(df_path)
+
+    # Otherwise load from raw files, process it and save ######################
+    else:
+        logger.debug('Processing cell line meta dataframe ... ')
+
+        # Download the raw file if not exist
+        download_files(filenames=CL_METADATA_FILENAME,
+                       target_folder=os.path.join(data_root, RAW_FOLDER))
+
+        df = pd.read_csv(
+            os.path.join(data_root, RAW_FOLDER, CL_METADATA_FILENAME),
+            sep='\t',
+            header=0,
+            index_col=0,
+            usecols=['sample_name',
+                     'dataset',
+                     'simplified_tumor_site',
+                     'simplified_tumor_type',
+                     'sample_category'],
+            dtype=str)
+
+        # Renaming columns for shorter and better column names
+        df.index.names = ['sample']
+        df.columns = ['data_src', 'site', 'type', 'category']
+
+        # Delete '-', which could be inconsistent between seq and meta
+        print(df.shape)
+        df.index = df.index.str.replace('-', '')
+        print(df.shape)
+
+        # Convert all the categorical data from text to numeric
+        columns = df.columns
+        dict_names = [i + '_dict.txt' for i in columns]
+        for col, dict_name in zip(columns, dict_names):
+            df[col] = encode_label_to_int(data_root=data_root,
+                                          dict_name=dict_name,
+                                          labels=df[col])
+
+        # Convert data type into generic python types
+        df = df.astype(int)
+
+        # save to disk for future usage
+        try:
+            os.makedirs(os.path.join(data_root, PROC_FOLDER))
+        except FileExistsError:
+            pass
+        df.to_pickle(df_path)
+
+    df = df.astype(int_dtype)
     return df
 
 
@@ -644,6 +792,16 @@ if __name__ == '__main__':
                          rnaseq_scaling='std').head())
 
     # Test statistic data loading functions
-    print('=' * 80 + '\nDrug statistics dataframe head:')
-    print(get_drug_stats_df(data_root='../../data/',
-                            grth_scaling='none').head())
+    print('=' * 80 + '\nDrug analysis dataframe head:')
+    print(get_drug_anlys_df(data_root='../../data/').head())
+
+    # Plot histogram for drugs ('AVG_GRTH', 'AVG_CORR')
+    get_drug_stats_df(data_root='../../data/', grth_scaling='none').\
+        hist(column=['AVG_GRTH', 'AVG_CORR'], figsize=(16, 9), bins=20)
+
+    plt.suptitle('Histogram of average growth and average correlation between '
+                 'concentration and growth of all drugs')
+    plt.show()
+
+    print('=' * 80 + '\nCell line dataframe head:')
+    print(get_cl_meta_df(data_root='../../data/').head())

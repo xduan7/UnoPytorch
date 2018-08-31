@@ -99,8 +99,8 @@ class RNASeqDataset(data.Dataset):
                 and other processes that requires randomness.
             summary (bool): set True for printing dataset summary.
 
-            int_dtype (type): integer dtype for data storage in RAM and disk.
-            float_dtype (type): float dtype for data storage in RAM and disk.
+            int_dtype (type): integer dtype for data storage in RAM.
+            float_dtype (type): float dtype for data storage in RAM.
             output_dtype (type): output dtype for neural network.
 
             rnaseq_scaling (str): scaling method for RNA squence. Choose

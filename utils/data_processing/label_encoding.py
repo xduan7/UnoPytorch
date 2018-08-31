@@ -8,140 +8,147 @@
         This file includes helper functions that are re
 """
 
-import errno
 import json
 import logging
-import pandas as pd
+import os
+import numpy as np
+
 
 logger = logging.getLogger(__name__)
 
-
-def get_labels(dict_path: str):
-    """label_list = get_labels(label_encoding_dict)
-
-    Get the list of labels from a encoding dictionary
-
-    Args:
-        dict_path (str): Path to store the dictionary for label encoding.
-
-    Returns:
-        (list): list of labels.
-    """
-    with open(dict_path, 'r') as f:
-        label_encoding_dict = json.load(f)
-
-    return [l for l in label_encoding_dict.keys()]
+# Folders for raw/processed data
+RAW_FOLDER = './raw/'
+PROC_FOLDER = './processed/'
 
 
-def get_label_encoding_dict(dict_path: str,
-                            new_labels: iter):
-    """le_dict = get_label_encoding_dict('./dict.pkl', ['some', 'labels'])
+def get_label_dict(data_root: str, dict_name: str):
+    """label_dict = get_label_list('./data/', 'label_dict.txt')
 
-    This function takes all the labels and a path, constructs a dictionary of
-    label mapping. The dictionary contains forward and backward mapping from
-    keys to values.
-    For example, the label encoding dictionary for ['A', 'B', 'C'] is
-    {0: 'A', 1: 'B', 2: 'C', 'A': 0, 'B': 1, 'C': 2}.
-
-    Note that due to JSON formatting, the keys cannot be integers,
-    which means that the actual storage
+    Get the encoding dictionary from the given data path.
 
     Args:
-        dict_path (str): Path to store the dictionary for label encoding.
-        new_labels (iter): a iterable structure of all the labels to be encoded.
+        data_root (str): path to data root folder.
+        dict_name (str): label encoding dictionary name.
 
     Returns:
-        (dict): dictionary for forward/backward label encoding.
+        dict: encoding dictionary. {} if the dictionary does not exist.
     """
-    label_encoding_dict = None
+    dict_path = os.path.join(data_root, PROC_FOLDER, dict_name)
 
-    # Directly read the dict if it exists already
-    try:
+    if os.path.exists(dict_path):
         with open(dict_path, 'r') as f:
             label_encoding_dict = json.load(f)
-
-        if new_labels is not None:
-
-            # Check if the labels in dict are indeed the labels to be encoded
-            old_labels = get_labels(dict_path)
-
-            if len(set(new_labels) - set(old_labels)) != 0:
-
-                # If not, extend the label encoding dict
-                old_idx = len(old_labels)
-                for idx, l in enumerate(set(new_labels) - set(old_labels)):
-                    # label_encoding_dict[idx + old_idx] = l
-                    label_encoding_dict[l] = idx + old_idx
-
-                with open(dict_path, 'w') as f:
-                    json.dump(label_encoding_dict, f, indent=4)
-
-    except OSError as e:
-
-        # If the dict does not exist, create one based on labels
-        if e.errno == errno.ENOENT:
-            label_encoding_dict = {}
-
-            # Forward and backward encoding k-v pairs
-            for idx, src in enumerate(new_labels):
-                # label_encoding_dict[idx] = src
-                label_encoding_dict[src] = idx
-
-            with open(dict_path, 'w') as f:
-                json.dump(label_encoding_dict, f, indent=4)
-        else:
-            logger.error('Error loading %s.' % dict_path, exc_info=True)
-
-    if label_encoding_dict is None:
-        logger.error('Unknown error getting labels from %s.' % dict_path,
-                     exc_info=True)
-        raise Exception('Unable to get label dict.')
-
-    return {k: int(v) for k, v in label_encoding_dict.items()}
+        return label_encoding_dict
+    else:
+        return {}
 
 
-def encode_label_to_int(labels: pd.Series or list,
-                        dict_path: str):
-    """dataframe['A'] = label_encoding(dataframe['A'], './path/')
+def update_label_dict(data_root: str, dict_name: str, new_labels: iter):
+    """label_dict = update_label_dict('./data/',
+                                      'label_dict.txt',
+                                      ['some', 'labels'])
 
-    This function encodes a series into numeric and return as a list. In the
-    meanwhile, the dictionary for encoding is stored for future usage.
+    This function will check if there exists dictionary for label encoding.
+        * if not, it construct a new encoding dictionary;
+        * otherwise, it will load the existing dictionary and update if not
+            all he labels to be encoded are in the dictionary;
+    Lastly, it returns the updated encoded dictionary.
+
+    For example, the label encoding dictionary for labels ['A', 'B', 'C'] is
+    {'A': 0, 'B': 1, 'C': 2}.
+
+    Note that all the labels should be strings.
 
     Args:
-        labels (pd.Series or list): Pandas series or list object for encoding.
-        dict_path (str): Path to store the dictionary for label encoding.
+        data_root (str): path to data root folder.
+        dict_name (str): label encoding dictionary name.
+        new_labels (iter): iterable structure of labels to be encoded.
 
     Returns:
-        (list): list of encoded items.
+        dict: update encoding dictionary for labels.
     """
-    if type(labels) is list:
-        label_list = list(set(labels))
+
+    label_encoding_dict = get_label_dict(data_root=data_root,
+                                         dict_name=dict_name)
+
+    # Get all the old labels and check if we have new ones
+    old_labels = [str(l) for l in label_encoding_dict.keys()]
+
+    if len(set(new_labels) - set(old_labels)) != 0:
+
+        # If not, extend the label encoding dict
+        old_idx = len(old_labels)
+        for idx, l in enumerate(set(new_labels) - set(old_labels)):
+            label_encoding_dict[str(l)] = idx + old_idx
+
+        # Save the dict to corresponding path
+        try:
+            os.makedirs(os.path.join(data_root, PROC_FOLDER))
+        except FileExistsError:
+            pass
+
+        dict_path = os.path.join(data_root, PROC_FOLDER, dict_name)
+        with open(dict_path, 'w') as f:
+            json.dump(label_encoding_dict, f, indent=4)
+
+    return label_encoding_dict
+
+
+def encode_label_to_int(data_root: str, dict_name: str, labels: iter):
+    """encoded_labels = label_encoding('./data/',
+                                       'label_dict.txt',
+                                       dataframe['column'])
+
+    This function encodes a iterable structure of labels into list of integer.
+
+    Args:
+        data_root (str): path to data root folder.
+        dict_name (str): label encoding dictionary name.
+        labels (iter): an iterable structure of labels to be encoded.
+
+    Returns:
+        list: list of integer encoded labels.
+    """
+
+    label_encoding_dict = update_label_dict(data_root=data_root,
+                                            dict_name=dict_name,
+                                            new_labels=labels)
+    return [label_encoding_dict[str(s)] for s in labels]
+
+
+def encode_int_to_onehot(labels: iter, num_classes: int = None):
+    """one_hot_labels = encode_int_to_onehot(int_labels, num_classes=10)
+
+    This function converts an iterable structure of integer labels into
+    one-hot encoding.
+
+    Args:
+        labels (iter): an iterable structure of int labels to be encoded.
+        num_classes (int): number of classes for labels. When set to None,
+            the function will infer from given labels.
+
+    Returns:
+        list: list of one-hot-encoded labels.
+    """
+
+    # Infer the number of classes and sanity check
+    if num_classes is None:
+        if len(set(labels)) != (np.amax(labels) + 1):
+            logger.warning('Possible incomplete labels.'
+                           'Set the num_classes to ensure the correctness.')
+
+        num_classes = len(set(labels))
     else:
-        label_list = labels.tolist()
+        assert num_classes == len(set(labels))
 
-    label_encoding_dict: dict \
-        = get_label_encoding_dict(dict_path, list(set(label_list)))
-    encoded_list = [label_encoding_dict[s] for s in label_list]
-
-    return encoded_list
-
-
-def encode_int_to_onehot(labels: pd.Series or list,
-                         num_classes: int):
-
-    if type(labels) is list:
-        label_list = list(set(labels))
-    else:
-        label_list = labels.tolist()
-
-    encoded_list = []
-
-    for l in label_list:
+    # Convert the labels into one-hot-encoded ones
+    encoded_labels = []
+    for l in labels:
         encoded = [0] * num_classes
         encoded[l] = 1
-        encoded_list.append(encoded)
+        encoded_labels.append(encoded)
 
-    return encoded_list
+    return encoded_labels
 
 
 
