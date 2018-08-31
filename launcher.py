@@ -22,8 +22,8 @@ if __name__ == '__main__':
         #  'val_src': ['GDSC'], },
 
         # Training + validation data sources for the transfer learning matrix
-        # {'trn_src': ['NCI60'],
-        #  'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
+        {'trn_src': ['NCI60'],
+         'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
 
         {'trn_src': ['CTRP'],
          'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },

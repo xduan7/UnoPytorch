@@ -9,13 +9,14 @@
         pre-processing from raw data.
 """
 import json
+import multiprocessing
 import os
 import logging
-import time
 import warnings
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from scipy import stats
 
 
@@ -24,10 +25,6 @@ from utils.data_processing.label_encoding import encode_label_to_int
 from utils.miscellaneous.file_downloading import download_files
 
 logger = logging.getLogger(__name__)
-
-# Suppress warning for NaN correlation between concentration and growth
-warnings.filterwarnings('ignore', message=
-    'invalid value encountered in double_scalars')
 
 # Folders for raw/processed data
 RAW_FOLDER = './raw/'
@@ -95,6 +92,11 @@ def get_all_drugs(data_root: str):
     drugs = list(resp_drugs & ecfp_drugs & pfp_drugs & dscptr_drgus)
 
     # save to disk for future usage
+    try:
+        os.makedirs(os.path.join(data_root, PROC_FOLDER))
+    except FileExistsError:
+        pass
+
     with open(file_path, 'w') as f:
         json.dump(drugs, f, indent=4)
     return drugs
@@ -142,6 +144,11 @@ def get_all_cells(data_root: str):
     cells = list(resp_cells & combat_cells & source_scale_cells)
 
     # save to disk for future usage
+    try:
+        os.makedirs(os.path.join(data_root, PROC_FOLDER))
+    except FileExistsError:
+        pass
+
     with open(file_path, 'w') as f:
         json.dump(cells, f, indent=4)
     return cells
@@ -150,7 +157,7 @@ def get_all_cells(data_root: str):
 def get_drug_resp_df(
         data_root: str,
 
-        grth_scaling: str = 'none',
+        grth_scaling: str,
 
         int_dtype: type = np.int8,
         float_dtype: type = np.float32):
@@ -318,13 +325,11 @@ def get_drug_feature_df(
         data_root: str,
 
         feature_usage: str,
-        dscptr_scaling: str = 'std',
-        dscptr_nan_thresh: float = 0.0,
+        dscptr_scaling: str,
+        dscptr_nan_thresh: float,
 
         int_dtype: type = np.int8,
         float_dtype: type = np.float32):
-
-    logger.debug('Loading drug feature dataframe(s) ... ')
 
     # Return the corresponding drug feature dataframe
     if feature_usage == 'both':
@@ -424,7 +429,8 @@ def get_combo_stats_df(
 
     # Otherwise process combo statistics and save #############################
     else:
-        logger.debug('Processing drug + cell combo statics dataframe ... ')
+        logger.debug('Processing drug + cell combo statics dataframe ... '
+                     'this may take up to 5 minutes.')
 
         # Load the whole drug response dataframe and create a combo column
         # Use generic python dtypes to minimize the error during processing
@@ -438,16 +444,17 @@ def get_combo_stats_df(
         #     (drug_resp_df['CELLNAME'].isin(get_all_cells(data_root))) &
         #     (drug_resp_df['DRUG_ID'].isin(get_all_drugs(data_root)))]
 
-        logger.debug('Iterating through every drug + cell combinations ...')
-
-        # The columns of drug response dataframe is
-        # ['SOURCE', 'DRUG_ID', 'CELLNAME', 'LOG_CONCENTRATION', 'GROWTH']
+        # Using a dict to store all combo info with a single iteration
         combo_dict = {}
 
         # Note that there are different ways of iterating the dataframe
         # Fastest way is to convert the dataframe into ndarray, which is
         # 2x faster than itertuples(), which is 110x faster than iterrows().
+        # This part takes about 30 sec on AMD 2700X
         drug_resp_array = drug_resp_df.values
+
+        # Each row in the drug response dataframe contains:
+        # ['SOURCE', 'DRUG_ID', 'CELLNAME', 'LOG_CONCENTRATION', 'GROWTH']
         for row in drug_resp_array:
 
             # row[1] = drug
@@ -463,35 +470,44 @@ def get_combo_stats_df(
                 combo_dict[combo] = [row[1], row[2], (), ()]
 
             # Concentration and growth
-            combo_dict[combo][2] = combo_dict[combo][2] + (row[3], )
-            combo_dict[combo][3] = combo_dict[combo][3] + (row[4], )
+            combo_dict[combo][2] += (row[3], )
+            combo_dict[combo][3] += (row[4], )
 
         # Using list of lists (table) for much faster data access
-        combo_stats = []
-        for combo, value in combo_dict.items():
+        # This part is parallelized using joblib
+        def process_combo(dict_value: list):
 
             # Each dict value will be a list containing:
             # [drug, cell, tuple of concentration, tuple of growth]
-            conc_tuple = value[2]
-            grth_tuple = value[3]
+            conc_tuple = dict_value[2]
+            grth_tuple = dict_value[3]
 
             # This might throw warnings as var(growth) == 0 sometimes
             # Fill NaN with 0 as there is no correlation in cases like this
-            corr = stats.pearsonr(conc_tuple, grth_tuple)[0]
-            corr = 0. if np.isnan(corr) else corr
+            with warnings.catch_warnings():
+                warnings.filterwarnings('error')
+                try:
+                    corr = stats.pearsonr(x=conc_tuple, y=grth_tuple)[0]
+                except Warning:
+                    corr = 0.0
+            # corr = 0. if np.isnan(corr) else corr
 
+            # Each row contains the following fields:
             # ['DRUG_ID', 'CELLNAME','NUM_REC', 'AVG', 'VAR', 'CORR']
-            row = [value[0], value[1], len(conc_tuple),
-                   np.mean(grth_tuple), np.var(grth_tuple), corr]
-            combo_stats.append(row)
+            return [dict_value[0], dict_value[1], len(conc_tuple),
+                    np.mean(grth_tuple), corr]
+
+        num_cores = multiprocessing.cpu_count()
+        combo_stats = Parallel(n_jobs=num_cores)(
+            delayed(process_combo)(v) for _, v in combo_dict.items())
 
         # Convert ths list of lists to dataframe
-        cols = ['DRUG_ID', 'CELLNAME', 'NUM_REC', 'AVG', 'VAR', 'CORR']
+        cols = ['DRUG_ID', 'CELLNAME', 'NUM_REC', 'AVG_GRTH', 'CORR']
         df = pd.DataFrame(combo_stats, columns=cols)
 
         # Convert data type into generic python types
         df[['NUM_REC']] = df[['NUM_REC']].astype(int)
-        df[['AVG', 'VAR', 'CORR']] = df[['AVG', 'VAR', 'CORR']].astype(float)
+        df[['AVG_GRTH', 'CORR']] = df[['AVG_GRTH', 'CORR']].astype(float)
 
         # save to disk for future usage
         try:
@@ -502,7 +518,7 @@ def get_combo_stats_df(
 
     # Convert the dtypes for a more efficient, compact dataframe ##############
     df[['NUM_REC']] = df[['NUM_REC']].astype(int_dtype)
-    df[['AVG', 'VAR', 'CORR']] = df[['AVG', 'VAR', 'CORR']].astype(float_dtype)
+    df[['AVG_GRTH', 'CORR']] = df[['AVG_GRTH', 'CORR']].astype(float_dtype)
     return df
 
 
@@ -511,8 +527,11 @@ def get_drug_stats_df(
 
         grth_scaling: str,
 
-        int_dtype: type = np.int8,
+        int_dtype: type = np.int16,
         float_dtype: type = np.float32):
+
+    if int_dtype == np.int8:
+        logger.warning('Integer length too smaller for drug statistics.')
 
     df_filename = 'drug_stats_df(scaling=%s).pkl' % grth_scaling
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
@@ -531,33 +550,100 @@ def get_drug_stats_df(
                                             int_dtype=int,
                                             float_dtype=float)
 
-        logger.debug('Iterating through every drug ...')
+        # Using a dict to store all drug info with a single iteration
+        drug_dict = {}
 
+        # Each row in the combo stats dataframe contains:
+        # ['DRUG_ID', 'CELLNAME','NUM_REC', 'AVG_GRTH', 'CORR']
+        combo_stats_array = combo_stats_df.values
+        for row in combo_stats_array:
+            drug = row[0]
+            if drug not in drug_dict:
+                # Each dictionary value will be a list containing:
+                # [num of cell, tuple of num of records,
+                #  tuple of avg grth, tuple of corr]
+                drug_dict[drug] = [0, (), (), ()]
 
-    pass
+            drug_dict[drug][0] += 1
+            drug_dict[drug][1] += (row[2], )
+            drug_dict[drug][2] += (row[3], )
+            drug_dict[drug][3] += (row[4], )
+
+        # Using list of lists (table) for much faster data access
+        # This part is parallelized using joblib
+        def process_drug(drug: str, dict_value: list):
+
+            # Each row in the drug stats dataframe contains:
+            # ['DRUG_ID', 'NUM_CL', 'NUM_REC', 'AVG_GRTH', 'AVG_CORR']
+            num_cl = dict_value[0]
+            records_tuple = dict_value[1]
+
+            assert num_cl == len(records_tuple)
+
+            grth_tuple = dict_value[2]
+            corr_tuple = dict_value[3]
+
+            num_rec = np.sum(records_tuple)
+            avg_grth = np.average(a=grth_tuple, weights=records_tuple)
+            avg_corr = np.average(a=corr_tuple, weights=records_tuple)
+
+            return [drug, num_cl, num_rec, avg_grth, avg_corr]
+
+        num_cores = multiprocessing.cpu_count()
+        drug_stats = Parallel(n_jobs=num_cores)(
+            delayed(process_drug)(k, v) for k, v in drug_dict.items())
+
+        # Convert ths list of lists to dataframe
+        cols = ['DRUG_ID', 'NUM_CL', 'NUM_REC', 'AVG_GRTH', 'AVG_CORR']
+        df = pd.DataFrame(drug_stats, columns=cols)
+
+        # Convert data type into generic python types
+        df[['NUM_CL', 'NUM_REC']] = df[['NUM_CL', 'NUM_REC']].astype(int)
+        df[['AVG_GRTH', 'AVG_CORR']] = \
+            df[['AVG_GRTH', 'AVG_CORR']].astype(float)
+
+        # save to disk for future usage
+        try:
+            os.makedirs(os.path.join(data_root, PROC_FOLDER))
+        except FileExistsError:
+            pass
+        df.to_pickle(df_path)
+
+    # Convert the dtypes for a more efficient, compact dataframe ##############
+    df[['NUM_CL', 'NUM_REC']] = df[['NUM_CL', 'NUM_REC']].astype(int_dtype)
+    df[['AVG_GRTH', 'AVG_CORR']] = \
+        df[['AVG_GRTH', 'AVG_CORR']].astype(float_dtype)
+    return df
 
 
 if __name__ == '__main__':
 
     logging.basicConfig(level=logging.DEBUG)
 
-    # Test the cell/drug list function
-    print('In drug response dataframes (growth, drug feature, RNA sequence), '
+    # Test the cell/drug list functions
+    print('=' * 80 + '\n'
+          'In drug response dataframes (growth, drug feature, RNA sequence), '
           'there are %i unique drugs and %i unique cell lines.'
           % (len(get_all_drugs(data_root='../../data/')),
              len(get_all_cells(data_root='../../data/'))))
 
+    # Test all basic data loading functions
+    print('=' * 80 + '\nDrug response dataframe head:')
+    print(get_drug_resp_df(data_root='../../data/',
+                           grth_scaling='none').head())
 
-    # print(get_drug_resp_df(data_root='../../data/').head())
-    # print(get_drug_feature_df(data_root='../../data/',
-    #                           feature_usage='both').head())
-    # print(get_rna_seq_df(data_root='../../data/',
-    #                      feature_usage='source_scale',
-    #                      scaling='std').head())
+    print('=' * 80 + '\nDrug feature dataframe head:')
+    print(get_drug_feature_df(data_root='../../data/',
+                              feature_usage='both',
+                              dscptr_scaling='std',
+                              dscptr_nan_thresh=0.).head())
 
-    df = get_combo_stats_df(data_root='../../data/', grth_scaling='none')
-    print(df.head())
-    print(df.isnull().values.any())
+    print('=' * 80 + '\nRNA sequence dataframe head:')
+    print(get_rna_seq_df(data_root='../../data/',
+                         feature_usage='source_scale',
+                         rnaseq_scaling='std').head())
 
-
-    print(df[df.isnull().any(axis=1)])
+    # Test statistic data loading functions
+    print('=' * 80 + '\nDrug statistics dataframe head:')
+    print(get_drug_stats_df(data_root='../../data/',
+                            grth_scaling='none').head())
