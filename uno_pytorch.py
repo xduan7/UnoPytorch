@@ -10,7 +10,6 @@
 
 import argparse
 import json
-import multiprocessing
 import time
 
 import numpy as np
@@ -22,12 +21,12 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from networks.clf_net import ClfNet
 from networks.resp_net import RespNet
+from utils.data_processing.label_encoding import get_label_dict
 from utils.datasets.drug_resp_dataset import DrugRespDataset
-from utils.datasets.rna_seq_dataset import RNASeqDataset
+from utils.datasets.cl_class_dataset import CLClassDataset
 from utils.data_processing.dataframe_scaling import SCALING_METHODS
 from utils.network_config.encoder_init import get_gene_encoder, \
     get_drug_encoder
-from utils.data_processing.label_encoding import get_labels
 from utils.network_config.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
 
@@ -46,19 +45,19 @@ def train_resp(
     total_loss = 0.
     num_samples = 0
 
-    for batch_idx, (rnaseq, drug_feature, conc, growth) \
+    for batch_idx, (rnaseq, drug_feature, conc, grth) \
             in enumerate(data_loader):
 
         if batch_idx >= max_num_batches:
             break
 
-        rnaseq, drug_feature, conc, growth = \
+        rnaseq, drug_feature, conc, grth = \
             rnaseq.to(device), drug_feature.to(device), \
-            conc.to(device), growth.to(device)
+            conc.to(device), grth.to(device)
         resp_net.zero_grad()
 
         pred_growth = resp_net(rnaseq, drug_feature, conc)
-        loss = loss_func(pred_growth, growth)
+        loss = loss_func(pred_growth, grth)
         loss.backward()
         optimizer.step()
 
@@ -89,18 +88,18 @@ def valid_resp(
             mse, mae = 0., 0.
             growth_array, pred_array = np.array([]), np.array([])
 
-            for rnaseq, drug_feature, conc, growth in val_loader:
-                rnaseq, drug_feature, conc, growth = \
+            for rnaseq, drug_feature, conc, grth in val_loader:
+                rnaseq, drug_feature, conc, grth = \
                     rnaseq.to(device), drug_feature.to(device), \
-                    conc.to(device), growth.to(device)
+                    conc.to(device), grth.to(device)
                 pred_growth = resp_net(rnaseq, drug_feature, conc)
 
                 num_samples = conc.shape[0]
-                mse += F.mse_loss(pred_growth, growth).item() * num_samples
-                mae += F.l1_loss(pred_growth, growth).item() * num_samples
+                mse += F.mse_loss(pred_growth, grth).item() * num_samples
+                mae += F.l1_loss(pred_growth, grth).item() * num_samples
 
                 growth_array = np.concatenate(
-                    (growth_array, growth.cpu().numpy().flatten()))
+                    (growth_array, grth.cpu().numpy().flatten()))
                 pred_array = np.concatenate(
                     (pred_array, pred_growth.cpu().numpy().flatten()))
 
@@ -227,8 +226,8 @@ def main():
     parser.add_argument('--rnaseq_scaling', type=str, default='std',
                         help='scaling method for RNA sequence',
                         choices=SCALING_METHODS)
-    parser.add_argument('--nan_threshold', type=float, default=0.0,
-                        help='ratio of NaN values allowed for drug features')
+    parser.add_argument('--descriptor_nan_threshold', type=float, default=0.0,
+                        help='ratio of NaN values allowed for drug descriptor')
 
     # Feature usage and partitioning settings
     parser.add_argument('--rnaseq_feature_usage', type=str, default='combat',
@@ -353,7 +352,7 @@ def main():
 
     # Drug response dataloaders for training/validation
     drug_resp_dataset_kwargs = {
-        'data_folder': './data/',
+        'data_root': './data/',
         'rand_state': args.rand_state,
         'summary': False,
 
@@ -361,10 +360,10 @@ def main():
         'float_dtype': np.float16,
         'output_dtype': np.float32,
 
-        'growth_scaling': args.growth_scaling,
-        'descriptor_scaling': args.descriptor_scaling,
+        'grth_scaling': args.growth_scaling,
+        'dscptr_scaling': args.descriptor_scaling,
         'rnaseq_scaling': args.rnaseq_scaling,
-        'nan_threshold': args.nan_threshold,
+        'dscptr_nan_threshold': args.descriptor_nan_threshold,
 
         'rnaseq_feature_usage': args.rnaseq_feature_usage,
         'drug_feature_usage': args.drug_feature_usage,
@@ -389,7 +388,7 @@ def main():
 
     # RNA sequence classification dataloaders for training/validation
     rna_seq_dataset_kwargs = {
-        'data_folder': './data/',
+        'data_root': './data/',
         'rand_state': args.rand_state,
         'summary': False,
 
@@ -403,14 +402,14 @@ def main():
         'validation_ratio': args.validation_ratio, }
 
     rna_seq_trn_loader = torch.utils.data.DataLoader(
-        RNASeqDataset(training=True,
-                      **rna_seq_dataset_kwargs),
+        CLClassDataset(training=True,
+                       **rna_seq_dataset_kwargs),
         batch_size=args.trn_batch_size,
         **dataloader_kwargs)
 
     rna_seq_val_loader = torch.utils.data.DataLoader(
-        RNASeqDataset(training=False,
-                      **rna_seq_dataset_kwargs),
+        CLClassDataset(training=False,
+                       **rna_seq_dataset_kwargs),
         batch_size=args.val_batch_size,
         **dataloader_kwargs)
 
@@ -480,13 +479,13 @@ def main():
         'num_layers': args.clf_num_layers, }
 
     category_clf_net = ClfNet(
-        num_classes=len(get_labels('./data/processed/category_dict.json')),
+        num_classes=len(get_label_dict('./data/', 'category_dict.txt')),
         **clf_net_kwargs).to(device)
     site_clf_net = ClfNet(
-        num_classes=len(get_labels('./data/processed/site_dict.json')),
+        num_classes=len(get_label_dict('./data/', 'site_dict.txt')),
         **clf_net_kwargs).to(device)
     type_clf_net = ClfNet(
-        num_classes=len(get_labels('./data/processed/type_dict.json')),
+        num_classes=len(get_label_dict('./data/', 'type_dict.txt')),
         **clf_net_kwargs).to(device)
 
     # Multi-GPU settings

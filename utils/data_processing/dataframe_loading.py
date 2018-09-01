@@ -404,6 +404,13 @@ def get_rna_seq_df(
         # Delete '-', which could be inconsistent between seq and meta
         df.index = df.index.str.replace('-', '')
 
+        # Note that after this name changing, some rows will have the same
+        # name like 'GDSC.TT' and 'GDSC.T-T', but they are actually the same
+        # Drop the duplicates for consistency
+        print(df.shape)
+        df = df[~df.index.duplicated(keep='first')]
+        print(df.shape)
+
         # Scaling the descriptor with given scaling method
         df = scale_dataframe(df, rnaseq_scaling)
 

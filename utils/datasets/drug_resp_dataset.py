@@ -6,9 +6,6 @@
     Python Version:     3.6.6
     File Description:
         This file implements the dataset for drug response.
-
-    TODO:
-    * optimizing __getitem__ method for multiprocess data retrieval.
 """
 
 import logging
@@ -47,7 +44,6 @@ class DrugRespDataset(data.Dataset):
     """
 
     def __init__(
-
             self,
             data_root: str,
             data_src: str,
@@ -61,7 +57,7 @@ class DrugRespDataset(data.Dataset):
             output_dtype: type = np.float32,
 
             # Pre-processing settings
-            growth_scaling: str = 'none',
+            grth_scaling: str = 'none',
             dscptr_scaling: str = 'std',
             rnaseq_scaling: str = 'std',
             dscptr_nan_threshold: float = 0.0,
@@ -81,7 +77,7 @@ class DrugRespDataset(data.Dataset):
             * Public attributes and other preparations.
 
         Args:
-            data_root (str): path to data folder.
+            data_root (str): path to data root folder.
             data_src (str): data source for drug response, must be one of
                 'NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI', and 'all'.
             training (bool): indicator for training.
@@ -93,7 +89,7 @@ class DrugRespDataset(data.Dataset):
             float_dtype (type): float dtype for data storage in RAM.
             output_dtype (type): output dtype for neural network.
 
-            growth_scaling (str): scaling method for drug response growth.
+            grth_scaling (str): scaling method for drug response growth.
                 Choose between 'none', 'std', and 'minmax'.
             dscptr_scaling (str): scaling method for drug descriptor.
                 Choose between 'none', 'std', and 'minmax'.
@@ -135,9 +131,9 @@ class DrugRespDataset(data.Dataset):
         self.__output_dtype = output_dtype
 
         # Feature scaling
-        if growth_scaling is None or growth_scaling == '':
-            growth_scaling = 'none'
-        growth_scaling = growth_scaling.lower()
+        if grth_scaling is None or grth_scaling == '':
+            grth_scaling = 'none'
+        grth_scaling = grth_scaling.lower()
         if dscptr_scaling is None or dscptr_scaling == '':
             dscptr_scaling = 'none'
         dscptr_scaling = dscptr_scaling
@@ -152,7 +148,7 @@ class DrugRespDataset(data.Dataset):
         # Load all dataframes #################################################
         self.__drug_resp_df = get_drug_resp_df(
             data_root=data_root,
-            grth_scaling=growth_scaling,
+            grth_scaling=grth_scaling,
             int_dtype=int_dtype,
             float_dtype=float_dtype)
 
@@ -233,12 +229,9 @@ class DrugRespDataset(data.Dataset):
         # Note that even with locks for multiprocessing lib, the code will
         # get stuck at some point if all CPU cores are used.
 
-        # Using lock to retrieve data from memory
-        # self.__lock.acquire()
         drug_resp = self.__drug_resp_array[index]
         drug_feature = self.__drug_feature_dict[drug_resp[1]]
         rnaseq = self.__rnaseq_dict[drug_resp[2]]
-        # self.__lock.release()
 
         drug_feature = drug_feature.astype(self.__output_dtype)
         rnaseq = rnaseq.astype(self.__output_dtype)

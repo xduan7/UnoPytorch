@@ -139,7 +139,7 @@ def encode_int_to_onehot(labels: iter, num_classes: int = None):
 
         num_classes = len(set(labels))
     else:
-        assert num_classes == len(set(labels))
+        assert num_classes >= len(set(labels))
 
     # Convert the labels into one-hot-encoded ones
     encoded_labels = []

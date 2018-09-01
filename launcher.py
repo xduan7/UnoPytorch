@@ -71,7 +71,7 @@ if __name__ == '__main__':
             '--growth_scaling', 'none',
             '--descriptor_scaling', 'std',
             '--rnaseq_scaling', 'std',
-            '--nan_threshold', '0.0',
+            '--descriptor_nan_threshold', '0.0',
 
             # Feature usage and partitioning settings
             '--rnaseq_feature_usage', rnaseq_feature,
