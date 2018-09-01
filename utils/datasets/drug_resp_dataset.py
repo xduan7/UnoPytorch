@@ -11,22 +11,13 @@
     * optimizing __getitem__ method for multiprocess data retrieval.
 """
 
-import os
-import errno
 import logging
-import multiprocessing
-import time
-
-from joblib import Parallel, delayed
-
 import numpy as np
-import pandas as pd
 import torch.utils.data as data
 from sklearn.model_selection import train_test_split
 
 from utils.data_processing.dataframe_loading import get_drug_resp_df, \
     get_drug_feature_df, get_rna_seq_df, get_drug_anlys_df, get_cl_meta_df
-from utils.data_processing.dataframe_to_dict import df_to_dict
 from utils.data_processing.label_encoding import get_label_dict
 
 logger = logging.getLogger(__name__)
@@ -191,10 +182,11 @@ class DrugRespDataset(data.Dataset):
 
         # Converting dataframes to arrays and dict for rapid access ###########
         self.__drug_resp_array = self.__drug_resp_df.values
-        self.__drug_feature_dict = df_to_dict(self.__drug_feature_df,
-                                              dtype=self.__float_dtype)
-        self.__rnaseq_dict = df_to_dict(self.__rnaseq_df,
-                                        dtype=self.__float_dtype)
+        # The following conversion will upcast dtypes
+        self.__drug_feature_dict = {idx: row.values for idx, row in
+                                    self.__drug_feature_df.iterrows()}
+        self.__rnaseq_dict = {idx: row.values for idx, row in
+                              self.__rnaseq_df.iterrows()}
 
         # Dataframes are not needed any more
         self.__drug_resp_df = None
@@ -340,14 +332,15 @@ class DrugRespDataset(data.Dataset):
         cell_list = self.__drug_resp_df['CELLNAME'].unique().tolist()
         drug_list = self.__drug_resp_df['DRUG_ID'].unique().tolist()
 
-        # Create a list to store all drugs' analysis results
-        drug_anlys_dict = df_to_dict(
-            get_drug_anlys_df(data_root='../../data/'), dtype=bool)
+        # Create an array to store all drugs' analysis results
+        drug_anlys_dict = {idx: row.values for idx, row in
+                           get_drug_anlys_df(self.__data_root).iterrows()}
         drug_anlys_array = np.array([drug_anlys_dict[d] for d in drug_list])
 
         # Create a list to store all cell lines types
-        cell_type_dict = df_to_dict(
-            get_cl_meta_df(data_root='../../data/')[['type']], dtype=int)
+        cell_type_dict = {idx: row.values for idx, row in
+                          get_cl_meta_df(self.__data_root)
+                          [['type']].iterrows()}
         cell_type_list = [cell_type_dict[c] for c in cell_list]
 
         # Change validation size when both features are disjoint in splitting

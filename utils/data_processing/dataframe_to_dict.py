@@ -7,13 +7,11 @@
     File Description:   
 
 """
+import sys
 
 import pandas as pd
 
 
 def df_to_dict(df: pd.DataFrame, dtype: type):
 
-    dict = {}
-    for index, row in df.iterrows():
-        dict[index] = row.values.astype(dtype)
-    return dict
+    return {idx: row.values.astype(dtype) for idx, row in df.iterrows()}
