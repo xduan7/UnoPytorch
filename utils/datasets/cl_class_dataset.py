@@ -43,7 +43,6 @@ class CLClassDataset(data.Dataset):
         cells (list): list of all the cells in the dataset
         num_cells (int): number of cell lines in the dataset
         rnaseq_dim (int): dimensionality of RNA sequence
-        num_data_src (int): number of data sources overall
     """
 
     def __init__(

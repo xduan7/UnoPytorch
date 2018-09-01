@@ -9,7 +9,6 @@
 """
 import logging
 import copy
-import multiprocessing
 import os
 
 import numpy as np
@@ -21,6 +20,8 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
 from networks.encoder_net import EncoderNet
+from utils.data_processing.dataframe_loading import get_rna_seq_df, \
+    get_drug_feature_df
 from utils.datasets.basic_dataset import DataFrameDataset
 from utils.network_config.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
@@ -236,7 +237,7 @@ def get_encoder(
 
 def get_gene_encoder(
         model_folder: str,
-        data_folder: str,
+        data_root: str,
 
         # RNA sequence usage and scaling
         rnaseq_feature_usage: str,
@@ -269,7 +270,7 @@ def get_gene_encoder(
 
     Args:
         model_folder (str): path to the model folder.
-        data_folder (str): path to data folder (root).
+        data_root (str): path to data folder (root).
 
         rnaseq_feature_usage (str): RNA sequence data used. Choose between
             'source_scale' and 'combat'.
@@ -303,14 +304,14 @@ def get_gene_encoder(
                          rnaseq_feature_usage, rnaseq_scaling)
     gene_encoder_path = os.path.join(model_folder, gene_encoder_name)
 
-    gene_df_name = 'rnaseq_df(%s, scaling=%s, dtype=float16).pkl' \
-                   % (rnaseq_feature_usage, rnaseq_scaling)
-    gene_df_path = os.path.join(data_folder, 'processed', gene_df_name)
-    gene_df = pd.read_pickle(gene_df_path)
+    rna_seq_df = get_rna_seq_df(data_root=data_root,
+                                feature_usage=rnaseq_feature_usage,
+                                rnaseq_scaling=rnaseq_scaling)
+    rna_seq_df.drop_duplicates(inplace=True)
 
     return get_encoder(
         model_path=gene_encoder_path,
-        dataframe=gene_df,
+        dataframe=rna_seq_df,
 
         autoencoder_init=autoencoder_init,
         layer_dim=layer_dim,
@@ -326,7 +327,7 @@ def get_gene_encoder(
 
 def get_drug_encoder(
         model_folder: str,
-        data_folder: str,
+        data_root: str,
 
         # Drug feature usage and scaling
         drug_feature_usage: str,
@@ -361,7 +362,7 @@ def get_drug_encoder(
 
     Args:
         model_folder (str): path to the model folder.
-        data_folder (str): path to data folder (root).
+        data_root (str): path to data folder (root).
 
         drug_feature_usage (str): Drug feature usage used. Choose between
             'fingerprint', 'descriptor', or 'both'.
@@ -398,32 +399,14 @@ def get_drug_encoder(
          drug_feature_usage, descriptor_scaling, nan_threshold,)
     drug_encoder_path = os.path.join(model_folder, drug_encoder_name)
 
-    # Load drug dataframe
-    drug_fingerprint_df_filename = 'drug_fingerprint_df(dtype=int8).pkl'
-    drug_fingerprint_df_path = os.path.join(data_folder, 'processed',
-                                            drug_fingerprint_df_filename)
-    drug_fingerprint_df = pd.read_pickle(drug_fingerprint_df_path)
-
-    drug_descriptor_df_filename = \
-        'drug_descriptor_df(scaling=%s, nan_thresh=%.2f, dtype=float16).pkl' \
-        % (descriptor_scaling, nan_threshold)
-    drug_descriptor_df_path = os.path.join(data_folder, 'processed',
-                                           drug_descriptor_df_filename)
-    drug_descriptor_df = pd.read_pickle(drug_descriptor_df_path)
-
-    if drug_feature_usage == 'both':
-        drug_df = pd.concat([drug_fingerprint_df, drug_descriptor_df],
-                            axis=1, join='inner')
-    elif drug_feature_usage == 'fingerprint':
-        drug_df = drug_fingerprint_df
-    elif drug_feature_usage == 'descriptor':
-        drug_df = drug_descriptor_df
-    else:
-        raise ValueError('Undefined drug feature %s.' % drug_feature_usage)
+    drug_feature_df = get_drug_feature_df(data_root=data_root,
+                                          feature_usage=drug_feature_usage,
+                                          dscptr_scaling=descriptor_scaling,
+                                          dscptr_nan_thresh=nan_threshold)
 
     return get_encoder(
         model_path=drug_encoder_path,
-        dataframe=drug_df,
+        dataframe=drug_feature_df,
 
         autoencoder_init=autoencoder_init,
         layer_dim=layer_dim,
@@ -452,7 +435,7 @@ if __name__ == '__main__':
 
     gene_encoder = get_gene_encoder(
         model_folder='../../models/',
-        data_folder='../../data/',
+        data_root='../../data/',
 
         rnaseq_feature_usage='source_scale',
         rnaseq_scaling='std',
@@ -470,7 +453,7 @@ if __name__ == '__main__':
 
     drug_encoder = get_drug_encoder(
         model_folder='../../models/',
-        data_folder='../../data/',
+        data_root='../../data/',
 
         drug_feature_usage='both',
         descriptor_scaling='std',

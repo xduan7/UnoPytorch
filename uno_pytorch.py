@@ -31,6 +31,13 @@ from utils.network_config.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
 
 
+# Number of workers for dataloader. Too many workers might lead to process
+# hanging for pytorch version 4.1. Set this number between 0 and 4.
+NUM_WORKER = 4
+
+DATA_ROOT = './data/'
+
+
 def train_resp(
         device: torch.device,
 
@@ -347,12 +354,12 @@ def main():
         'timeout': 1,
         'shuffle': 'True',
         # 'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
-        'num_workers': 4 if use_cuda else 0,
+        'num_workers': NUM_WORKER if use_cuda else 0,
         'pin_memory': True if use_cuda else False, }
 
     # Drug response dataloaders for training/validation
     drug_resp_dataset_kwargs = {
-        'data_root': './data/',
+        'data_root': DATA_ROOT,
         'rand_state': args.rand_state,
         'summary': False,
 
@@ -386,9 +393,9 @@ def main():
         batch_size=args.val_batch_size,
         **dataloader_kwargs) for src in args.val_srcs]
 
-    # RNA sequence classification dataloaders for training/validation
-    rna_seq_dataset_kwargs = {
-        'data_root': './data/',
+    # Cell line classification dataloaders for training/validation
+    cl_class_dataset_kwargs = {
+        'data_root': DATA_ROOT,
         'rand_state': args.rand_state,
         'summary': False,
 
@@ -401,15 +408,15 @@ def main():
         'rnaseq_feature_usage': args.rnaseq_feature_usage,
         'validation_ratio': args.validation_ratio, }
 
-    rna_seq_trn_loader = torch.utils.data.DataLoader(
+    cl_class_trn_loader = torch.utils.data.DataLoader(
         CLClassDataset(training=True,
-                       **rna_seq_dataset_kwargs),
+                       **cl_class_dataset_kwargs),
         batch_size=args.trn_batch_size,
         **dataloader_kwargs)
 
-    rna_seq_val_loader = torch.utils.data.DataLoader(
+    cl_class_val_loader = torch.utils.data.DataLoader(
         CLClassDataset(training=False,
-                       **rna_seq_dataset_kwargs),
+                       **cl_class_dataset_kwargs),
         batch_size=args.val_batch_size,
         **dataloader_kwargs)
 
@@ -425,7 +432,7 @@ def main():
 
     encoder_kwarg = {
         'model_folder': './models/',
-        'data_folder': './data/',
+        'data_root': DATA_ROOT,
 
         'autoencoder_init': args.autoencoder_init,
         'training_kwarg': ae_training_kwarg,
@@ -448,7 +455,7 @@ def main():
     drug_encoder = get_drug_encoder(
         drug_feature_usage=args.drug_feature_usage,
         descriptor_scaling=args.descriptor_scaling,
-        nan_threshold=args.nan_threshold,
+        nan_threshold=args.descriptor_nan_threshold,
 
         layer_dim=args.drug_layer_dim,
         num_layers=args.drug_num_layers,
@@ -473,19 +480,19 @@ def main():
     # Sequence classifier for category, site, and type
     clf_net_kwargs = {
         'encoder': gene_encoder,
-        'condition_dim': rna_seq_trn_loader.dataset.num_data_src,
+        'condition_dim': len(get_label_dict(DATA_ROOT, 'data_src_dict.txt')),
         'latent_dim': args.gene_latent_dim,
         'layer_dim': args.clf_layer_dim,
         'num_layers': args.clf_num_layers, }
 
     category_clf_net = ClfNet(
-        num_classes=len(get_label_dict('./data/', 'category_dict.txt')),
+        num_classes=len(get_label_dict(DATA_ROOT, 'category_dict.txt')),
         **clf_net_kwargs).to(device)
     site_clf_net = ClfNet(
-        num_classes=len(get_label_dict('./data/', 'site_dict.txt')),
+        num_classes=len(get_label_dict(DATA_ROOT, 'site_dict.txt')),
         **clf_net_kwargs).to(device)
     type_clf_net = ClfNet(
-        num_classes=len(get_label_dict('./data/', 'type_dict.txt')),
+        num_classes=len(get_label_dict(DATA_ROOT, 'type_dict.txt')),
         **clf_net_kwargs).to(device)
 
     # Multi-GPU settings
@@ -515,7 +522,7 @@ def main():
     resp_max_num_batches = np.amin(
         (len(drug_resp_trn_loader), args.max_num_batches))
     clf_max_num_batches = np.amin(
-        (len(rna_seq_trn_loader), args.max_num_batches))
+        (len(cl_class_trn_loader), args.max_num_batches))
 
     # Training/validation loops ###############################################
     val_mse, val_mae, val_r2 = [], [], []
@@ -542,7 +549,7 @@ def main():
                   category_clf_net=category_clf_net,
                   site_clf_net=site_clf_net,
                   type_clf_net=type_clf_net,
-                  data_loader=rna_seq_trn_loader,
+                  data_loader=cl_class_trn_loader,
                   max_num_batches=clf_max_num_batches,
                   optimizer=clf_opt)
 
@@ -561,7 +568,7 @@ def main():
                   category_clf_net=category_clf_net,
                   site_clf_net=site_clf_net,
                   type_clf_net=type_clf_net,
-                  data_loader=rna_seq_val_loader,)
+                  data_loader=cl_class_val_loader,)
 
         # Validating drug response regressor
         if epoch >= args.resp_val_start_epoch:

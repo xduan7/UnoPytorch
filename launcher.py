@@ -84,20 +84,20 @@ if __name__ == '__main__':
             # Encoders for drug features and RNA sequence
             '--gene_layer_dim', '1024',
             '--gene_num_layers', '2',
-            '--gene_latent_dim', '1024',
+            '--gene_latent_dim', '512',
 
             '--drug_layer_dim', '4096',
             '--drug_num_layers', '2',
-            '--drug_latent_dim', '4096',
+            '--drug_latent_dim', '2048',
 
             # Using autoencoder for drug/sequence encoder init
             '--autoencoder_init',
 
             # Drug response regression network
-            '--resp_layer_dim', '4096',
+            '--resp_layer_dim', '2048',
             '--resp_num_layers', '2',
-            '--resp_dropout', '0.0',
-            '--resp_num_blocks', '4',
+            '--resp_dropout', '0.',
+            '--resp_num_blocks', '5',
             '--resp_activation', 'none',
 
             # RNA sequence classification network(s)
@@ -114,7 +114,7 @@ if __name__ == '__main__':
             '--resp_val_start_epoch', '0',
 
             # Early stopping based on R2 score of drug response
-            '--early_stop_patience', '10',
+            '--early_stop_patience', '20',
 
             # RNA sequence classification training parameters
             '--clf_opt', 'SGD',
@@ -125,7 +125,7 @@ if __name__ == '__main__':
             '--trn_batch_size', '32',
             '--val_batch_size', '256',
             '--max_num_batches', '1000',
-            '--max_num_epochs', '100',
+            '--max_num_epochs', '1000',
 
             # Miscellaneous settings ##################################
             # '--multi_gpu'
