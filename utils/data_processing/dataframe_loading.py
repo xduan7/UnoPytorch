@@ -42,6 +42,20 @@ RNASEQ_COMBAT_FILENAME = 'combined_rnaseq_data_lincs1000_combat'
 
 
 def get_all_drugs(data_root: str):
+    """drug_list = get_all_drugs('./data/')
+
+    This function will get all the drugs that are potentially related
+    to drug response dataset.
+
+    It loads all related files (drug response file, fingerprint files,
+    descriptor file) and returns the list of common drug IDs.
+
+    Args:
+        data_root (str): path to the data root folder.
+
+    Returns:
+        list: drug IDs related to the drug response.
+    """
 
     file_path = os.path.join(data_root, PROC_FOLDER, 'drugs.txt')
 
@@ -104,6 +118,21 @@ def get_all_drugs(data_root: str):
 
 
 def get_all_cells(data_root: str):
+    """cell_list = get_all_cells('./data/')
+
+    This function will get all the cell lines that are potentially related
+    to drug response dataset.
+
+    It loads all related files (drug response file, source scale RNA
+    sequence file, combat RNA sequence file) and returns the list of common
+    cell line names.
+
+    Args:
+        data_root (str): path to the data root folder.
+
+    Returns:
+        list: cell line names related to the drug response.
+    """
 
     file_path = os.path.join(data_root, PROC_FOLDER, 'cells.txt')
 
@@ -165,6 +194,27 @@ def get_drug_resp_df(
 
         int_dtype: type = np.int8,
         float_dtype: type = np.float32):
+    """df = get_drug_resp_df('./data/', 'std')
+
+    This function loads the whole drug response file, process it and return
+    as a dataframe. The processing includes:
+        * remove the '-' in cell line names;
+        * encode str format data sources into integer;
+        * scaling the growth accordingly;
+        * convert data types for more compact structure;
+
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
+
+    Args:
+        data_root (str): path to the data root folder.
+        grth_scaling (str): scaling strategy for growth in drug response.
+        int_dtype (type): int dtype for storage in RAM.
+        float_dtype (float): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: processed drug response dataframe.
+    """
 
     df_filename = 'drug_resp_df(scaling=%s).pkl' % grth_scaling
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
@@ -222,6 +272,21 @@ def get_drug_fgpt_df(
         data_root: str,
 
         int_dtype: type = np.int8):
+    """df = get_drug_fgpt_df('./data/')
+
+    This function loads two drug fingerprint files, join them as one
+    dataframe, convert them to int_dtype and return.
+
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
+
+    Args:
+        data_root (str): path to the data root folder.
+        int_dtype (type): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: processed drug fingerprint dataframe.
+    """
 
     df_filename = 'drug_fgpt_df.pkl'
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
@@ -273,12 +338,33 @@ def get_drug_dscptr_df(
         data_root: str,
 
         dscptr_scaling: str,
-        nan_thresh: float,
+        dscptr_nan_thresh: float,
 
         float_dtype: type = np.float32):
+    """df = get_drug_dscptr_df('./data/', 'std', 0.0)
+
+    This function loads the drug descriptor file, process it and return
+    as a dataframe. The processing includes:
+        * removing columns (features) and rows (drugs) that have exceeding
+            ratio of NaN values comparing to nan_thresh;
+        * scaling all the descriptor features accordingly;
+        * convert data types for more compact structure;
+
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
+
+    Args:
+        data_root (str): path to the data root folder.
+        dscptr_scaling (str): scaling strategy for all descriptor features.
+        dscptr_nan_thresh (float): threshold ratio of NaN values.
+        float_dtype (float): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: processed drug descriptor dataframe.
+    """
 
     df_filename = 'drug_dscptr_df(scaling=%s, nan_thresh=%.2f).pkl' \
-                  % (dscptr_scaling, nan_thresh)
+                  % (dscptr_scaling, dscptr_nan_thresh)
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
 
     # If the dataframe already exists, load and continue ######################
@@ -302,7 +388,7 @@ def get_drug_dscptr_df(
 
         # Drop NaN values if the percentage of NaN exceeds nan_threshold
         # Note that columns (features) are dropped first, and then rows (drugs)
-        valid_thresh = 1.0 - nan_thresh
+        valid_thresh = 1.0 - dscptr_nan_thresh
 
         df.dropna(axis=1, inplace=True, thresh=int(df.shape[0] * valid_thresh))
         df.dropna(axis=0, inplace=True, thresh=int(df.shape[1] * valid_thresh))
@@ -331,46 +417,89 @@ def get_drug_dscptr_df(
 def get_drug_feature_df(
         data_root: str,
 
-        feature_usage: str,
+        drug_feature_usage: str,
         dscptr_scaling: str,
         dscptr_nan_thresh: float,
 
         int_dtype: type = np.int8,
         float_dtype: type = np.float32):
+    """df = get_drug_feature_df('./data/', 'both', 'std', 0.0)
+
+    This function utilizes get_drug_fgpt_df and get_drug_dscptr_df. If the
+    feature usage is 'both', it will loads fingerprint and descriptors,
+    join them and return. Otherwise, if feature usage is set to
+    'fingerprint' or 'descriptor', the function returns the corresponding
+    dataframe.
+
+    Args:
+        data_root (str): path to the data root folder.
+        drug_feature_usage (str): feature usage indicator. Choose between
+            'both', 'fingerprint', and 'descriptor'.
+        dscptr_scaling (str): scaling strategy for all descriptor features.
+        dscptr_nan_thresh (float): threshold ratio of NaN values.
+        int_dtype (type): int dtype for storage in RAM.
+        float_dtype (float): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: processed drug feature dataframe.
+    """
 
     # Return the corresponding drug feature dataframe
-    if feature_usage == 'both':
-        return pd.concat([get_drug_fgpt_df(data_root=data_root,
-                                           int_dtype=int_dtype),
-                          get_drug_dscptr_df(data_root=data_root,
-                                             dscptr_scaling=dscptr_scaling,
-                                             nan_thresh=dscptr_nan_thresh,
-                                             float_dtype=float_dtype)],
-                         axis=1, join='inner')
-    elif feature_usage == 'fingerprint':
+    if drug_feature_usage == 'both':
+        return pd.concat(
+            [get_drug_fgpt_df(data_root=data_root,
+                              int_dtype=int_dtype),
+             get_drug_dscptr_df(data_root=data_root,
+                                dscptr_scaling=dscptr_scaling,
+                                dscptr_nan_thresh=dscptr_nan_thresh,
+                                float_dtype=float_dtype)],
+            axis=1, join='inner')
+    elif drug_feature_usage == 'fingerprint':
         return get_drug_fgpt_df(data_root=data_root,
                                 int_dtype=int_dtype)
-    elif feature_usage == 'descriptor':
+    elif drug_feature_usage == 'descriptor':
         return get_drug_dscptr_df(data_root=data_root,
                                   dscptr_scaling=dscptr_scaling,
-                                  nan_thresh=dscptr_nan_thresh,
+                                  dscptr_nan_thresh=dscptr_nan_thresh,
                                   float_dtype=float_dtype)
     else:
         logger.error('Drug feature must be one of \'fingerprint\', '
                      '\'descriptor\', or \'both\'.', exc_info=True)
-        raise ValueError('Undefined drug feature %s.' % feature_usage)
+        raise ValueError('Undefined drug feature %s.' % drug_feature_usage)
 
 
 def get_rna_seq_df(
         data_root: str,
 
-        feature_usage: str,
+        rnaseq_feature_usage: str,
         rnaseq_scaling: str,
 
         float_dtype: type = np.float32):
+    """df = get_rna_seq_df('./data/', 'source_scale', 'std')
+
+    This function loads the RNA sequence file, process it and return
+    as a dataframe. The processing includes:
+        * remove the '-' in cell line names;
+        * remove duplicate indices;
+        * scaling all the sequence features accordingly;
+        * convert data types for more compact structure;
+
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
+
+    Args:
+        data_root (str): path to the data root folder.
+        rnaseq_feature_usage (str): feature usage indicator, Choose between
+            'source_scale' and 'combat'.
+        rnaseq_scaling (str): scaling strategy for RNA sequence.
+        float_dtype (float): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: processed RNA sequence dataframe.
+    """
 
     df_filename = 'rnaseq_df(%s, scaling=%s).pkl' \
-                  % (feature_usage, rnaseq_scaling)
+                  % (rnaseq_feature_usage, rnaseq_scaling)
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
 
     # If the dataframe already exists, load and continue ######################
@@ -381,12 +510,12 @@ def get_rna_seq_df(
     else:
         logger.debug('Processing RNA sequence dataframe ... ')
 
-        if feature_usage == 'source_scale':
+        if rnaseq_feature_usage == 'source_scale':
             raw_data_filename = RNASEQ_SOURCE_SCALE_FILENAME
-        elif feature_usage == 'combat':
+        elif rnaseq_feature_usage == 'combat':
             raw_data_filename = RNASEQ_COMBAT_FILENAME
         else:
-            logger.error('Unknown RNA feature %s.' % feature_usage,
+            logger.error('Unknown RNA feature %s.' % rnaseq_feature_usage,
                          exc_info=True)
             raise ValueError('RNA feature usage must be one of '
                              '\'source_scale\' or \'combat\'.')
@@ -436,6 +565,29 @@ def get_combo_stats_df(
 
         int_dtype: type = np.int8,
         float_dtype: type = np.float32):
+    """df = get_combo_stats_df('./data/', 'std')
+
+    This function loads the whole drug response file, takes out every single
+    drug + cell line combinations, and calculates the statistics including:
+        * number of drug response records per combo;
+        * average growth per combo;
+        * correlation between drug log concentration and growth per combo;
+    for all the combinations.
+
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
+
+    Args:
+        data_root (str): path to the data root folder.
+        grth_scaling (str): scaling strategy for growth in drug response.
+        int_dtype (type): int dtype for storage in RAM.
+        float_dtype (float): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: drug cell combination statistics dataframe, each row
+            contains the following fields: ['DRUG_ID', 'CELLNAME','NUM_REC',
+            'AVG_GRTH', 'CORR'].
+    """
 
     df_filename = 'combo_stats_df(scaling=%s).pkl' % grth_scaling
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
@@ -510,7 +662,7 @@ def get_combo_stats_df(
             # corr = 0. if np.isnan(corr) else corr
 
             # Each row contains the following fields:
-            # ['DRUG_ID', 'CELLNAME','NUM_REC', 'AVG', 'VAR', 'CORR']
+            # ['DRUG_ID', 'CELLNAME','NUM_REC', 'AVG_GRTH', 'CORR']
             return [dict_value[0], dict_value[1], len(conc_tuple),
                     np.mean(grth_tuple), corr]
 
@@ -546,6 +698,30 @@ def get_drug_stats_df(
 
         int_dtype: type = np.int16,
         float_dtype: type = np.float32):
+    """df = get_drug_stats_df('./data/', 'std')
+
+    This function loads the combination statistics file, iterates through
+    all the drugs, and calculated the statistics including:
+        * number of cell lines tested per drug;
+        * number of drug response records per drug;
+        * average of growth per drug;
+        * average correlation of dose and growth per drug;
+    for all the drugs.
+
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
+
+    Args:
+        data_root (str): path to the data root folder.
+        grth_scaling (str): scaling strategy for growth in drug response.
+        int_dtype (type): int dtype for storage in RAM.
+        float_dtype (float): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: drug cell combination statistics dataframe, each row
+            contains the following fields: ['DRUG_ID', 'NUM_CL', 'NUM_REC',
+            'AVG_GRTH', 'AVG_CORR']
+    """
 
     if int_dtype == np.int8:
         logger.warning('Integer length too smaller for drug statistics.')
@@ -635,33 +811,27 @@ def get_drug_stats_df(
 
 
 def get_drug_anlys_df(data_root: str):
-    """
+    """df = get_drug_anlys_df('./data/')
 
-    This function analyze drugs based their average growth and
-        dose-to-growth correlation.
+    This function will load the drug statistics dataframe and go on and
+    classify all the drugs into 4 different categories:
+        * high growth, high correlation
+        * high growth, low correlation
+        * low growth, high correlation
+        * low growth, low correlation
+    Using the median value of growth and correlation. The results will be
+    returned as a dataframe with drug ID as index.
 
-        The function will first calculate combo statistics if it does not
-        exist in the /data/processed/ folder.
-        For  each (drug + cell line) combo, it calculates average growth and
-        the correlation, then store the statistics in disk for future usage.
-
-        After obtaining the combo dataframe, the function will calculate the
-        same stats w.r.t. each drug if the data does not exist in the
-        /data/processed/ folder.
-
-        Then the single drug stats will be used to divide all the drugs into
-        4 different categories:
-            * high growth, high correlation
-            * high growth, low correlation
-            * low growth, high correlation
-            * low growth, low correlation
-
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
 
     Args:
-        data_root:
+        data_root (str): path to the data root folder.
 
     Returns:
-
+        pd.DataFrame: drug classes with growth and correlation, each row
+            contains the following fields: ['HIGH_GROWTH', 'HIGH_CORR'],
+            which are boolean features.
     """
 
     df_filename = 'drug_anlys_df.pkl'
@@ -712,6 +882,24 @@ def get_cl_meta_df(
         data_root: str,
 
         int_dtype: type = np.int8):
+    """df = get_cl_meta_df('./data/')
+
+    This function loads the metadata for cell lines, process it and return
+    as a dataframe. The processing includes:
+        * change column names to ['data_src', 'site', 'type', 'category'];
+        * remove the '-' in cell line names;
+        * convert data types for more compact structure;
+
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
+
+    Args:
+        data_root (str): path to the data root folder.
+        int_dtype (type): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: processed cell line metadata dataframe.
+    """
 
     df_filename = 'cl_meta_df.pkl'
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
@@ -789,13 +977,13 @@ if __name__ == '__main__':
 
     print('=' * 80 + '\nDrug feature dataframe head:')
     print(get_drug_feature_df(data_root='../../data/',
-                              feature_usage='both',
+                              drug_feature_usage='both',
                               dscptr_scaling='std',
                               dscptr_nan_thresh=0.).head())
 
     print('=' * 80 + '\nRNA sequence dataframe head:')
     print(get_rna_seq_df(data_root='../../data/',
-                         feature_usage='source_scale',
+                         rnaseq_feature_usage='source_scale',
                          rnaseq_scaling='std').head())
 
     # Test statistic data loading functions

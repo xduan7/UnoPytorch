@@ -20,6 +20,9 @@ def seed_random_state(rand_state: int=0):
 
     Args:
         rand_state (int): random seed
+
+    Returns:
+        None
     """
 
     random.seed(rand_state)
@@ -28,4 +31,6 @@ def seed_random_state(rand_state: int=0):
 
     torch.manual_seed(rand_state)
     torch.cuda.manual_seed_all(rand_state)
+
+    # This must be set to True for deterministic results in PyTorch 4.1
     torch.backends.cudnn.deterministic = True

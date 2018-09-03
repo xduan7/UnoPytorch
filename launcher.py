@@ -88,21 +88,22 @@ if __name__ == '__main__':
 
             '--drug_layer_dim', '4096',
             '--drug_num_layers', '2',
-            '--drug_latent_dim', '2048',
+            '--drug_latent_dim', '1024',
 
             # Using autoencoder for drug/sequence encoder init
             '--autoencoder_init',
 
             # Drug response regression network
-            '--resp_layer_dim', '2048',
+            '--resp_layer_dim', '1024',
+            '--resp_num_layers_per_block', '2',
+            '--resp_num_blocks', '2',
             '--resp_num_layers', '2',
             '--resp_dropout', '0.',
-            '--resp_num_blocks', '5',
             '--resp_activation', 'none',
 
             # RNA sequence classification network(s)
             '--clf_layer_dim', '256',
-            '--clf_num_layers', '1',
+            '--clf_num_layers', '2',
 
             # Training and validation parameters ######################
             # Drug response regression training parameters

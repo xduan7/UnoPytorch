@@ -305,7 +305,7 @@ def get_gene_encoder(
     gene_encoder_path = os.path.join(model_folder, gene_encoder_name)
 
     rna_seq_df = get_rna_seq_df(data_root=data_root,
-                                feature_usage=rnaseq_feature_usage,
+                                rnaseq_feature_usage=rnaseq_feature_usage,
                                 rnaseq_scaling=rnaseq_scaling)
     rna_seq_df.drop_duplicates(inplace=True)
 
@@ -400,7 +400,7 @@ def get_drug_encoder(
     drug_encoder_path = os.path.join(model_folder, drug_encoder_name)
 
     drug_feature_df = get_drug_feature_df(data_root=data_root,
-                                          feature_usage=drug_feature_usage,
+                                          drug_feature_usage=drug_feature_usage,
                                           dscptr_scaling=descriptor_scaling,
                                           dscptr_nan_thresh=nan_threshold)
 

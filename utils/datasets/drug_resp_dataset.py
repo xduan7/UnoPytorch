@@ -154,7 +154,7 @@ class DrugRespDataset(data.Dataset):
 
         self.__drug_feature_df = get_drug_feature_df(
             data_root=data_root,
-            feature_usage=drug_feature_usage,
+            drug_feature_usage=drug_feature_usage,
             dscptr_scaling=dscptr_scaling,
             dscptr_nan_thresh=dscptr_nan_threshold,
             int_dtype=int_dtype,
@@ -162,7 +162,7 @@ class DrugRespDataset(data.Dataset):
 
         self.__rnaseq_df = get_rna_seq_df(
             data_root=data_root,
-            feature_usage=rnaseq_feature_usage,
+            rnaseq_feature_usage=rnaseq_feature_usage,
             rnaseq_scaling=rnaseq_scaling,
             float_dtype=float_dtype)
 
@@ -355,8 +355,8 @@ class DrugRespDataset(data.Dataset):
                 train_test_split(cell_list, **split_kwargs,
                                  stratify=cell_type_list)
         except ValueError:
-            logger.warning('Failed to split cells in stratified way. '
-                           'Splitting randomly ...')
+            logger.warning('Failed to split %s cells in stratified '
+                           'way. Splitting randomly ...' % self.data_source)
             training_cell_list, validation_cell_list = \
                 train_test_split(cell_list, **split_kwargs)
 
@@ -366,24 +366,27 @@ class DrugRespDataset(data.Dataset):
                 train_test_split(drug_list, **split_kwargs,
                                  stratify=drug_anlys_array)
         except ValueError:
-            logger.warning('Failed to split drugs stratified on growth and '
-                           'correlation. Splitting solely on avg growth ...')
+            logger.warning('Failed to split %s drugs stratified on growth '
+                           'and correlation. Splitting solely on avg growth'
+                           ' ...' % self.data_source)
 
             try:
                 training_drug_list, validation_drug_list = \
                     train_test_split(drug_list, **split_kwargs,
                                      stratify=drug_anlys_array[:, 0])
             except ValueError:
-                logger.warning('Failed to split drugs on avg growth. '
-                               'Splitting solely on avg correlation ...')
+                logger.warning('Failed to split %s drugs on avg growth. '
+                               'Splitting solely on avg correlation ...'
+                               % self.data_source)
 
                 try:
                     training_drug_list, validation_drug_list = \
                         train_test_split(drug_list, **split_kwargs,
                                          stratify=drug_anlys_array[:, 1])
                 except ValueError:
-                    logger.warning('Failed to split drugs on avg '
-                                   'correlation. Splitting randomly ...')
+                    logger.warning('Failed to split %s drugs on avg '
+                                   'correlation. Splitting randomly ...'
+                                   % self.data_source)
                     training_drug_list, validation_drug_list = \
                         train_test_split(drug_list, **split_kwargs)
 

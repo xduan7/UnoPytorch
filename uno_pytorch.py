@@ -274,12 +274,14 @@ def main():
     # Drug response regression network
     parser.add_argument('--resp_layer_dim', type=int, default=1024,
                         help='dimension of layers for drug response block')
-    parser.add_argument('--resp_num_layers', type=int, default=2,
-                        help='number of layers for drug response block')
-    parser.add_argument('--resp_dropout', type=float, default=0.2,
-                        help='dropout of residual blocks for drug response')
+    parser.add_argument('--resp_num_layers_per_block', type=int, default=2,
+                        help='number of layers for drug response res block')
     parser.add_argument('--resp_num_blocks', type=int, default=3,
                         help='number of residual blocks for drug response')
+    parser.add_argument('--resp_num_layers', type=int, default=2,
+                        help='number of layers for drug response')
+    parser.add_argument('--resp_dropout', type=float, default=0.2,
+                        help='dropout of residual blocks for drug response')
     parser.add_argument('--resp_activation', type=str, default='none',
                         help='activation for response prediction output',
                         choices=['sigmoid', 'tanh', 'none'])
@@ -471,11 +473,14 @@ def main():
         drug_encoder=drug_encoder,
 
         resp_layer_dim=args.resp_layer_dim,
+        resp_num_layers_per_block=args.resp_num_layers_per_block,
+        resp_num_blocks=args.resp_num_blocks,
         resp_num_layers=args.resp_num_layers,
         resp_dropout=args.resp_dropout,
-        resp_num_blocks=args.resp_num_blocks,
 
         resp_activation=args.resp_activation).to(device)
+
+    print(resp_net)
 
     # Sequence classifier for category, site, and type
     clf_net_kwargs = {

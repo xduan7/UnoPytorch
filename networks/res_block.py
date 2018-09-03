@@ -25,15 +25,15 @@ class ResBlock(nn.Module):
 
         for i in range(num_layers):
 
-            self.block.add_module('dense_%d' % i,
+            self.block.add_module('res_dense_%d' % i,
                                   nn.Linear(layer_dim, layer_dim))
 
             if dropout > 0.:
-                self.block.add_module('dropout_%d' % i,
+                self.block.add_module('res_dropout_%d' % i,
                                       nn.Dropout(dropout))
 
             if i != (num_layers - 1):
-                self.block.add_module('relu_%d' % i, nn.ReLU())
+                self.block.add_module('res_relu_%d' % i, nn.ReLU())
 
         self.activation = nn.ReLU()
 

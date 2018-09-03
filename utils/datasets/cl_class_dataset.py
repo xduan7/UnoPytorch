@@ -112,7 +112,7 @@ class CLClassDataset(data.Dataset):
         # Load all dataframes #################################################
         self.__rnaseq_df = get_rna_seq_df(
             data_root=data_root,
-            feature_usage=rnaseq_feature_usage,
+            rnaseq_feature_usage=rnaseq_feature_usage,
             rnaseq_scaling=rnaseq_scaling,
             float_dtype=float_dtype)
 

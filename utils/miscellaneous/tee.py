@@ -13,13 +13,18 @@ import sys
 
 
 class Tee(object):
+    """Tee class for storing terminal output to files.
+
+    This class implements a tee class that flush std terminal output to a
+    file for logging purpose.
+    """
 
     def __init__(self, log_name, mode='a'):
 
-        self._stdout = sys.stdout
+        self.__stdout = sys.stdout
 
-        self._log_name = log_name
-        self._mode = mode
+        self.__log_name = log_name
+        self.__mode = mode
 
         try:
             os.makedirs(os.path.dirname(log_name))
@@ -27,23 +32,17 @@ class Tee(object):
             pass
 
     def __del__(self):
-        sys.stdout = self._stdout
+        sys.stdout = self.__stdout
 
     def write(self, data):
 
-        # self._file = open(self._log_name, self._mode)
-        # self._file.write(data)
-        # self._file.flush()
-        # self._file.close()
-
-        with open(self._log_name, self._mode) as file:
+        with open(self.__log_name, self.__mode) as file:
             file.write(data)
 
-        self._stdout.write(data)
-        # self._stdout.flush()
+        self.__stdout.write(data)
 
     def flush(self):
-        self._stdout.flush()
+        self.__stdout.flush()
 
     def default_stdout(self):
-        return self._stdout
+        return self.__stdout

@@ -25,7 +25,6 @@ class ClfNet(nn.Module):
 
         super(ClfNet, self).__init__()
 
-
         self.__encoder = encoder
 
         self.__clf_net = nn.Sequential()
