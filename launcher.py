@@ -22,8 +22,8 @@ if __name__ == '__main__':
         #  'val_src': ['GDSC'], },
 
         # Training + validation data sources for the transfer learning matrix
-        {'trn_src': ['NCI60'],
-         'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
+        # {'trn_src': ['NCI60'],
+        #  'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
 
         {'trn_src': ['CTRP'],
          'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
@@ -94,11 +94,11 @@ if __name__ == '__main__':
             '--autoencoder_init',
 
             # Drug response regression network
-            '--resp_layer_dim', '1024',
+            '--resp_layer_dim', '2048',
             '--resp_num_layers_per_block', '2',
             '--resp_num_blocks', '2',
             '--resp_num_layers', '2',
-            '--resp_dropout', '0.',
+            '--resp_dropout', '0.5',
             '--resp_activation', 'none',
 
             # RNA sequence classification network(s)
@@ -122,7 +122,7 @@ if __name__ == '__main__':
             '--clf_lr', '1e-3',
 
             # Global/shared training parameters
-            '--decay_factor', '0.98',
+            '--lr_decay_factor', '0.98',
             '--trn_batch_size', '32',
             '--val_batch_size', '256',
             '--max_num_batches', '1000',

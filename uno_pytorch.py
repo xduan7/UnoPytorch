@@ -202,13 +202,18 @@ def valid_clf(
             correct_type += pred_type.eq(
                 cl_type.view_as(pred_type)).sum().item()
 
+    # Get overall accuracy
+    category_acc = 100. * correct_category / len(data_loader.dataset)
+    site_acc = 100. * correct_site / len(data_loader.dataset)
+    type_acc = 100. * correct_type / len(data_loader.dataset)
+
     print('\tCell Line Classification: '
           '\n\t\tCategory Accuracy: \t\t%5.2f%%; '
           '\n\t\tSite Accuracy: \t\t\t%5.2f%%; '
           '\n\t\tType Accuracy: \t\t\t%5.2f%%'
-          % ((100. * correct_category / len(data_loader.dataset)),
-             (100. * correct_site / len(data_loader.dataset)),
-             (100. * correct_type / len(data_loader.dataset))))
+          % (category_acc, site_acc, type_acc))
+
+    return category_acc, site_acc, type_acc
 
 
 def main():
@@ -322,7 +327,7 @@ def main():
                              'training')
 
     # Global/shared training parameters
-    parser.add_argument('--decay_factor', type=float, default=0.95,
+    parser.add_argument('--lr_decay_factor', type=float, default=0.95,
                         help='decay factor for learning rate')
     parser.add_argument('--trn_batch_size', type=int, default=32,
                         help='input batch size for training')
@@ -518,9 +523,9 @@ def main():
                             learning_rate=args.clf_lr)
 
     resp_lr_decay = LambdaLR(optimizer=resp_opt,
-                             lr_lambda=lambda e: args.decay_factor ** e)
+                             lr_lambda=lambda e: args.lr_decay_factor ** e)
     clf_lr_decay = LambdaLR(optimizer=clf_opt,
-                            lr_lambda=lambda e: args.decay_factor ** e)
+                            lr_lambda=lambda e: args.lr_decay_factor ** e)
 
     resp_loss_func = F.l1_loss if args.resp_loss_func == 'l1' else F.mse_loss
 
@@ -530,7 +535,7 @@ def main():
         (len(cl_class_trn_loader), args.max_num_batches))
 
     # Training/validation loops ###############################################
-    val_mse, val_mae, val_r2 = [], [], []
+    val_acc, val_mse, val_mae, val_r2 = [], [], [], []
     best_r2 = -np.inf
     patience = 0
     start_time = time.time()
@@ -568,15 +573,18 @@ def main():
 
         print('\nValidation Results:')
 
-        # Validating cell line classifier
-        valid_clf(device=device,
-                  category_clf_net=category_clf_net,
-                  site_clf_net=site_clf_net,
-                  type_clf_net=type_clf_net,
-                  data_loader=cl_class_val_loader,)
-
-        # Validating drug response regressor
         if epoch >= args.resp_val_start_epoch:
+
+            # Validating cell line classifier
+            category_acc, site_acc, type_acc = \
+                valid_clf(device=device,
+                          category_clf_net=category_clf_net,
+                          site_clf_net=site_clf_net,
+                          type_clf_net=type_clf_net,
+                          data_loader=cl_class_val_loader, )
+            val_acc.append([category_acc, site_acc, type_acc])
+
+            # Validating drug response regressor
             mse, mae, r2 = valid_resp(device=device,
                                       resp_net=resp_net,
                                       data_loaders=drug_resp_val_loaders)
@@ -601,6 +609,7 @@ def main():
         print('Epoch Running Time: %.1f Seconds.'
               % (time.time() - epoch_start_time))
 
+    val_acc = np.array(val_mse).reshape(-1, 3)
     val_mse, val_mae, val_r2 = \
         np.array(val_mse).reshape(-1, len(args.val_srcs)), \
         np.array(val_mae).reshape(-1, len(args.val_srcs)), \
@@ -609,21 +618,33 @@ def main():
     print('Program Running Time: %.1f Seconds.' % (time.time() - start_time))
 
     # Print overall validation results
-    val_data_sources = \
-        [loader.dataset.data_source for loader in drug_resp_val_loaders]
-
-    best_r2_scores = np.amax(val_r2, axis=0)
-    best_epochs = np.argmax(val_r2, axis=0)
-
     print('=' * 80)
     print('Overall Validation Results:')
+
+    # Print best accuracy for cell line classifiers
+    clf_targets = ['Cell Line Categories',
+                   'Cell Line Site',
+                   'Cell Line Types', ]
+    best_acc = np.amax(val_acc, axis=0)
+    best_acc_epochs = np.argmax(val_acc, axis=0)
+
+    for index, clf_target in enumerate(clf_targets):
+        print('\t%24s \t Best Accuracy: %.3f%% (Epoch = %3d)'
+              % (clf_target, best_acc[index], best_acc_epochs[index]))
+
+    # Print best R2 scores for drug response regressor
+    val_data_sources = \
+        [loader.dataset.data_source for loader in drug_resp_val_loaders]
+    best_r2 = np.amax(val_r2, axis=0)
+    best_r2_epochs = np.argmax(val_r2, axis=0)
+
     for index, data_source in enumerate(val_data_sources):
         print('\t%6s \t Best R2 Score: %+6.4f '
-              '(Epoch = %3d, MSE = %8.2f, MAE = %8.2f)'
-              % (data_source, best_r2_scores[index],
-                 best_epochs[index] + args.resp_val_start_epoch + 1,
-                 val_mse[best_epochs[index], index],
-                 val_mae[best_epochs[index], index]))
+              '(Epoch = %3d, MSE = %8.2f, MAE = %6.2f)'
+              % (data_source, best_r2[index],
+                 best_r2_epochs[index] + args.resp_val_start_epoch + 1,
+                 val_mse[best_r2_epochs[index], index],
+                 val_mae[best_r2_epochs[index], index]))
 
 
 main()
