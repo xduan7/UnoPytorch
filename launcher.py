@@ -18,8 +18,8 @@ if __name__ == '__main__':
 
     param_dict_list = [
 
-        {'trn_src': ['GDSC'],
-         'val_srcs': ['GDSC', 'CCLE', 'gCSI'], },
+        # {'trn_src': ['GDSC'],
+        #  'val_srcs': ['GDSC', 'CCLE', 'gCSI'], },
 
         # Training + validation data sources for the transfer learning matrix
         {'trn_src': ['NCI60'],
