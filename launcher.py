@@ -126,7 +126,7 @@ if __name__ == '__main__':
             '--trn_batch_size', '32',
             '--val_batch_size', '256',
             '--max_num_batches', '1000',
-            '--max_num_epochs', '3',
+            '--max_num_epochs', '1000',
 
             # Miscellaneous settings ##################################
             # '--multi_gpu'
