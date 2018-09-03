@@ -619,17 +619,18 @@ def main():
 
     # Print overall validation results
     print('=' * 80)
-    print('Overall Validation Results:')
+    print('Overall Validation Results:\n')
 
+    print('\tBest Results from Different Models (Epochs):')
     # Print best accuracy for cell line classifiers
     clf_targets = ['Cell Line Categories',
-                   'Cell Line Site',
+                   'Cell Line Sites',
                    'Cell Line Types', ]
     best_acc = np.amax(val_acc, axis=0)
     best_acc_epochs = np.argmax(val_acc, axis=0)
 
     for index, clf_target in enumerate(clf_targets):
-        print('\t%24s \t Best Accuracy: %.3f%% (Epoch = %3d)'
+        print('\t\t%24s Best Accuracy: %.3f%% (Epoch = %3d)'
               % (clf_target, best_acc[index], best_acc_epochs[index] + 1))
 
     # Print best R2 scores for drug response regressor
@@ -639,12 +640,28 @@ def main():
     best_r2_epochs = np.argmax(val_r2, axis=0)
 
     for index, data_source in enumerate(val_data_sources):
-        print('\t%6s \t Best R2 Score: %+6.4f '
+        print('\t\t%6s \t Best R2 Score: %+6.4f '
               '(Epoch = %3d, MSE = %8.2f, MAE = %6.2f)'
               % (data_source, best_r2[index],
                  best_r2_epochs[index] + args.resp_val_start_epoch + 1,
                  val_mse[best_r2_epochs[index], index],
                  val_mae[best_r2_epochs[index], index]))
+
+    # Print best epoch and all the corresponding validation results
+    best_epoch = val_r2.sum(axis=1).argmax()
+    print('\n\tBest Results from the Same Model (Epoch = %3d):'
+          % (best_epoch + 1))
+    for index, clf_target in enumerate(clf_targets):
+        print('\t\t%24s Best Accuracy: %.3f%%'
+              % (clf_target, val_acc[best_epoch, index]))
+
+    for index, data_source in enumerate(val_data_sources):
+        print('\t\t%6s \t Best R2 Score: %+6.4f '
+              '(MSE = %8.2f, MAE = %6.2f)'
+              % (data_source,
+                 val_r2[best_epoch, index],
+                 val_mse[best_epoch, index],
+                 val_mae[best_epoch, index]))
 
 
 main()
