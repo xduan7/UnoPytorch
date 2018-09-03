@@ -19,11 +19,11 @@ if __name__ == '__main__':
     param_dict_list = [
 
         # {'trn_src': ['GDSC'],
-        #  'val_src': ['GDSC'], },
+        #  'val_srcs': ['GDSC'], },
 
         # Training + validation data sources for the transfer learning matrix
-        # {'trn_src': ['NCI60'],
-        #  'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
+        {'trn_src': ['NCI60'],
+         'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
 
         {'trn_src': ['CTRP'],
          'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },

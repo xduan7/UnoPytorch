@@ -67,8 +67,7 @@ class RespNet(nn.Module):
                 self.__resp_net.add_module('dropout_%d' % i,
                                            nn.Dropout(resp_dropout))
 
-            if i != resp_num_layers:
-                self.__resp_net.add_module('res_relu_%d' % i, nn.ReLU())
+            self.__resp_net.add_module('res_relu_%d' % i, nn.ReLU())
 
         # Last layer for regression
         self.__resp_net.add_module('dense_out', nn.Linear(resp_layer_dim, 1))

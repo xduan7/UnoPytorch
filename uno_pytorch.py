@@ -609,7 +609,7 @@ def main():
         print('Epoch Running Time: %.1f Seconds.'
               % (time.time() - epoch_start_time))
 
-    val_acc = np.array(val_mse).reshape(-1, 3)
+    val_acc = np.array(val_acc).reshape(-1, 3)
     val_mse, val_mae, val_r2 = \
         np.array(val_mse).reshape(-1, len(args.val_srcs)), \
         np.array(val_mae).reshape(-1, len(args.val_srcs)), \
@@ -630,7 +630,7 @@ def main():
 
     for index, clf_target in enumerate(clf_targets):
         print('\t%24s \t Best Accuracy: %.3f%% (Epoch = %3d)'
-              % (clf_target, best_acc[index], best_acc_epochs[index]))
+              % (clf_target, best_acc[index], best_acc_epochs[index] + 1))
 
     # Print best R2 scores for drug response regressor
     val_data_sources = \
