@@ -1,5 +1,5 @@
 """ 
-    File Name:          UnoPytorch/resp_net.py
+    File Name:          UnoPytorch/response_net.py
     Author:             Xiaotian Duan (xduan7)
     Email:              xduan7@uchicago.edu
     Date:               8/17/18
@@ -9,7 +9,7 @@
 """
 import torch
 import torch.nn as nn
-from networks.res_block import ResBlock
+from networks.residual_block import ResBlock
 from utils.network_config.weight_init import basic_weight_init
 
 
@@ -29,8 +29,6 @@ class RespNet(nn.Module):
                  resp_num_layers: int,
 
                  resp_dropout: float,
-
-
                  resp_activation: str):
 
         super(RespNet, self).__init__()
@@ -73,9 +71,9 @@ class RespNet(nn.Module):
         self.__resp_net.add_module('dense_out', nn.Linear(resp_layer_dim, 1))
 
         if resp_activation.lower() == 'sigmoid':
-            self.__resp_net.add_module('activation_out', nn.Sigmoid())
+            self.__resp_net.add_module('activation', nn.Sigmoid())
         elif resp_activation.lower() == 'tanh':
-            self.__resp_net.add_module('activation_out', nn.Tanh())
+            self.__resp_net.add_module('activation', nn.Tanh())
         else:
             pass
 

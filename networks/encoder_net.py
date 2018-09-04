@@ -11,7 +11,7 @@ import torch.nn as nn
 from utils.network_config.weight_init import basic_weight_init
 
 
-class EncoderNet(nn.Module):
+class EncNet(nn.Module):
 
     def __init__(self,
                  input_dim: int,
@@ -20,7 +20,7 @@ class EncoderNet(nn.Module):
                  latent_dim: int,
                  autoencoder: bool=True):
 
-        super(EncoderNet, self).__init__()
+        super(EncNet, self).__init__()
 
         # Encoder #############################################################
         self.encoder = nn.Sequential()
@@ -73,7 +73,7 @@ class EncoderNet(nn.Module):
 
 if __name__ == '__main__':
 
-    ent = EncoderNet(
+    ent = EncNet(
         input_dim=100,
         layer_dim=200,
         latent_dim=20,

@@ -19,9 +19,10 @@ from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
-from networks.encoder_net import EncoderNet
-from utils.data_processing.dataframe_loading import get_rna_seq_df, \
-    get_drug_feature_df
+from networks.encoder_net import EncNet
+from utils.data_processing.cell_line_dataframes import get_rna_seq_df
+from utils.data_processing.drug_dataframes import get_drug_feature_df
+
 from utils.datasets.basic_dataset import DataFrameDataset
 from utils.network_config.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
@@ -119,11 +120,11 @@ def get_encoder(
 
     # If autoencoder initialization is not required, return a plain encoder
     if not autoencoder_init:
-        return EncoderNet(input_dim=dataframe.shape[1],
-                          layer_dim=layer_dim,
-                          num_layers=num_layers,
-                          latent_dim=latent_dim,
-                          autoencoder=False).to(device).encoder
+        return EncNet(input_dim=dataframe.shape[1],
+                      layer_dim=layer_dim,
+                      num_layers=num_layers,
+                      latent_dim=latent_dim,
+                      autoencoder=False).to(device).encoder
 
     # Check if the model exists, load and return
     if os.path.exists(model_path):
@@ -155,11 +156,11 @@ def get_encoder(
                                 **dataloader_kwargs)
 
     # Construct the network and get prepared for training #####################
-    autoencoder = EncoderNet(input_dim=dataframe.shape[1],
-                             layer_dim=layer_dim,
-                             latent_dim=latent_dim,
-                             num_layers=num_layers,
-                             autoencoder=True).to(device)
+    autoencoder = EncNet(input_dim=dataframe.shape[1],
+                         layer_dim=layer_dim,
+                         latent_dim=latent_dim,
+                         num_layers=num_layers,
+                         autoencoder=True).to(device)
     assert ae_loss_func.lower() == 'l1' or ae_loss_func.lower() == 'mse'
     loss_func = F.l1_loss if ae_loss_func.lower() == 'l1' else F.mse_loss
 

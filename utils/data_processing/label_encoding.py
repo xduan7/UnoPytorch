@@ -76,6 +76,8 @@ def update_label_dict(data_root: str, dict_name: str, new_labels: iter):
 
     if len(set(new_labels) - set(old_labels)) != 0:
 
+        logger.debug('Updating encoding dict %s' % dict_name)
+
         # If not, extend the label encoding dict
         old_idx = len(old_labels)
         for idx, l in enumerate(set(new_labels) - set(old_labels)):

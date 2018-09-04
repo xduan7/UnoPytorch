@@ -19,8 +19,8 @@ import torch.nn.functional as F
 from sklearn.metrics import r2_score
 from torch.optim.lr_scheduler import LambdaLR
 
-from networks.clf_net import ClfNet
-from networks.resp_net import RespNet
+from networks.classification_net import ClfNet
+from networks.response_net import RespNet
 from utils.data_processing.label_encoding import get_label_dict
 from utils.datasets.drug_resp_dataset import DrugRespDataset
 from utils.datasets.cl_class_dataset import CLClassDataset

@@ -16,7 +16,7 @@ import pandas as pd
 import torch.utils.data as data
 from sklearn.model_selection import train_test_split
 
-from utils.data_processing.dataframe_loading import get_rna_seq_df, \
+from utils.data_processing.cell_line_dataframes import get_rna_seq_df, \
     get_cl_meta_df
 from utils.data_processing.label_encoding import encode_int_to_onehot, \
     get_label_dict

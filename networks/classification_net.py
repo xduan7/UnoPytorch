@@ -1,5 +1,5 @@
 """ 
-    File Name:          UnoPytorch/clf_net.py
+    File Name:          UnoPytorch/classification_net.py
     Author:             Xiaotian Duan (xduan7)
     Email:              xduan7@uchicago.edu
     Date:               8/21/18
@@ -46,6 +46,9 @@ class ClfNet(nn.Module):
         # Weight Initialization ###############################################
         self.__clf_net.apply(basic_weight_init)
 
-    def forward(self, samples, conditions):
-        return self.__clf_net(torch.cat((self.__encoder(samples),
-                                         conditions), dim=1))
+    def forward(self, samples, conditions=None):
+        if conditions is None:
+            return self.__clf_net(self.__encoder(samples))
+        else:
+            return self.__clf_net(torch.cat((self.__encoder(samples),
+                                             conditions), dim=1))

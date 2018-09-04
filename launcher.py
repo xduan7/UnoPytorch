@@ -76,7 +76,7 @@ if __name__ == '__main__':
             # Feature usage and partitioning settings
             '--rnaseq_feature_usage', rnaseq_feature,
             '--drug_feature_usage', 'both',
-            '--validation_ratio', '0.15',
+            '--validation_ratio', '0.20',
             # '--disjoint_drugs',
             '--disjoint_cells',
 
@@ -88,28 +88,28 @@ if __name__ == '__main__':
 
             '--drug_layer_dim', '4096',
             '--drug_num_layers', '2',
-            '--drug_latent_dim', '1024',
+            '--drug_latent_dim', '512',
 
             # Using autoencoder for drug/sequence encoder init
             '--autoencoder_init',
 
             # Drug response regression network
-            '--resp_layer_dim', '2048',
+            '--resp_layer_dim', '1024',
             '--resp_num_layers_per_block', '2',
             '--resp_num_blocks', '2',
             '--resp_num_layers', '2',
-            '--resp_dropout', '0.5',
+            '--resp_dropout', '0.0',
             '--resp_activation', 'none',
 
             # RNA sequence classification network(s)
             '--clf_layer_dim', '256',
-            '--clf_num_layers', '2',
+            '--clf_num_layers', '1',
 
             # Training and validation parameters ######################
             # Drug response regression training parameters
             '--resp_loss_func', 'mse',
             '--resp_opt', 'SGD',
-            '--resp_lr', '1e-5',
+            '--resp_lr', '2e-5',
 
             # Starting epoch for drug response validation
             '--resp_val_start_epoch', '0',
@@ -119,7 +119,7 @@ if __name__ == '__main__':
 
             # RNA sequence classification training parameters
             '--clf_opt', 'SGD',
-            '--clf_lr', '1e-3',
+            '--clf_lr', '2e-3',
 
             # Global/shared training parameters
             '--lr_decay_factor', '0.98',

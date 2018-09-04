@@ -13,9 +13,12 @@ import numpy as np
 import torch.utils.data as data
 from sklearn.model_selection import train_test_split
 
-from utils.data_processing.dataframe_loading import get_drug_resp_df, \
-    get_drug_feature_df, get_rna_seq_df, get_drug_anlys_df, get_cl_meta_df
+from utils.data_processing.cell_line_dataframes import get_rna_seq_df, \
+    get_cl_meta_df
+from utils.data_processing.drug_dataframes import get_drug_feature_df
 from utils.data_processing.label_encoding import get_label_dict
+from utils.data_processing.response_dataframes import get_drug_resp_df, \
+    get_drug_anlys_df
 
 logger = logging.getLogger(__name__)
 
