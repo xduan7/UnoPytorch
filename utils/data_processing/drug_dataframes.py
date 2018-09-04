@@ -120,7 +120,7 @@ def get_drug_dscptr_df(data_root: str,
         data_root (str): path to the data root folder.
         dscptr_scaling (str): scaling strategy for all descriptor features.
         dscptr_nan_thresh (float): threshold ratio of NaN values.
-        float_dtype (float): int dtype for storage in RAM.
+        float_dtype (float): float dtype for storage in RAM.
 
     Returns:
         pd.DataFrame: processed drug descriptor dataframe.
@@ -229,6 +229,20 @@ def get_drug_feature_df(data_root: str,
 
 
 def get_drug_prop_df(data_root: str):
+    """df = get_drug_prop_df('./data/')
+
+    This function loads the drug property file and returns a dataframe with
+    only weighted QED and target families as columns (['QED', 'TARGET']).
+
+    Note that if the dataframe is already stored in the processed folder,
+    the function simply read from file and return after converting dtypes.
+
+    Args:
+        data_root (str): path to the data root folder.
+
+    Returns:
+        pd.DataFrame: drug property dataframe with target families and QED.
+    """
 
     df_filename = 'drug_prop_df.pkl'
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
@@ -274,7 +288,24 @@ def get_drug_prop_df(data_root: str):
     return df
 
 
-def get_drug_target_df(data_root: str, int_dtype: type = np.int8):
+def get_drug_target_df(data_root: str,
+                       int_dtype: type = np.int8):
+    """df = get_drug_target_df('./data/')
+
+    This function the drug property dataframe, process it and return the
+    drug target families dataframe. The processing includes:
+        * removing all columns but 'TARGET';
+        * drop drugs/rows that are not in the TGT_FAMS list;
+        * encode target families into integer labels;
+        * convert data types for more compact structure;
+
+    Args:
+        data_root (str): path to the data root folder.
+        int_dtype (type): int dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: drug target families dataframe.
+    """
 
     df = get_drug_prop_df(data_root=data_root)[['TARGET']]
 
@@ -294,6 +325,24 @@ def get_drug_target_df(data_root: str, int_dtype: type = np.int8):
 def get_drug_qed_df(data_root: str,
                     qed_scaling: str,
                     float_dtype: type = np.float32):
+    """df = get_drug_qed_df('./data/', 'none')
+
+
+    This function the drug property dataframe, process it and return the
+    drug weighted QED dataframe. The processing includes:
+        * removing all columns but 'QED';
+        * drop drugs/rows that have NaN as weighted QED;
+        * scaling the QED accordingly;
+        * convert data types for more compact structure;
+
+    Args:
+        data_root (str): path to the data root folder.
+        qed_scaling (str): scaling strategy for weighted QED.
+        float_dtype (float): float dtype for storage in RAM.
+
+    Returns:
+        pd.DataFrame: drug weighted QED dataframe.
+    """
 
     df = get_drug_prop_df(data_root=data_root)[['QED']]
 
