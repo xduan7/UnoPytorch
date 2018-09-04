@@ -16,204 +16,26 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics import r2_score
 from torch.optim.lr_scheduler import LambdaLR
 
-from networks.classification_net import ClfNet
-from networks.response_net import RespNet
+from networks.functions.cl_clf_func import train_cl_clf, valid_cl_clf
+from networks.functions.resp_func import train_resp, valid_resp
+from networks.structures.classification_net import ClfNet
+from networks.structures.response_net import RespNet
 from utils.data_processing.label_encoding import get_label_dict
 from utils.datasets.drug_resp_dataset import DrugRespDataset
 from utils.datasets.cl_class_dataset import CLClassDataset
 from utils.data_processing.dataframe_scaling import SCALING_METHODS
-from utils.network_config.encoder_init import get_gene_encoder, \
+from networks.initialization.encoder_init import get_gene_encoder, \
     get_drug_encoder
-from utils.network_config.optimizer import get_optimizer
+from utils.miscellaneous.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
 
 
 # Number of workers for dataloader. Too many workers might lead to process
-# hanging for pytorch version 4.1. Set this number between 0 and 4.
+# hanging for PyTorch version 4.1. Set this number between 0 and 4.
 NUM_WORKER = 4
-
 DATA_ROOT = './data/'
-
-
-def train_resp(
-        device: torch.device,
-
-        resp_net: nn.Module,
-        data_loader: torch.utils.data.DataLoader,
-
-        max_num_batches: int,
-        loss_func: callable,
-        optimizer: torch.optim, ):
-
-    resp_net.train()
-    total_loss = 0.
-    num_samples = 0
-
-    for batch_idx, (rnaseq, drug_feature, conc, grth) \
-            in enumerate(data_loader):
-
-        if batch_idx >= max_num_batches:
-            break
-
-        rnaseq, drug_feature, conc, grth = \
-            rnaseq.to(device), drug_feature.to(device), \
-            conc.to(device), grth.to(device)
-        resp_net.zero_grad()
-
-        pred_growth = resp_net(rnaseq, drug_feature, conc)
-        loss = loss_func(pred_growth, grth)
-        loss.backward()
-        optimizer.step()
-
-        num_samples += conc.shape[0]
-        total_loss += loss.item() * conc.shape[0]
-
-    print('\tDrug Response Regression Loss: %8.2f'
-          % (total_loss / num_samples))
-
-
-def valid_resp(
-        device: torch.device,
-
-        resp_net: nn.Module,
-        data_loaders: iter, ):
-
-    resp_net.eval()
-
-    mse_list = []
-    mae_list = []
-    r2_list = []
-
-    print('\tDrug Response Regression:')
-
-    with torch.no_grad():
-        for val_loader in data_loaders:
-
-            mse, mae = 0., 0.
-            growth_array, pred_array = np.array([]), np.array([])
-
-            for rnaseq, drug_feature, conc, grth in val_loader:
-                rnaseq, drug_feature, conc, grth = \
-                    rnaseq.to(device), drug_feature.to(device), \
-                    conc.to(device), grth.to(device)
-                pred_growth = resp_net(rnaseq, drug_feature, conc)
-
-                num_samples = conc.shape[0]
-                mse += F.mse_loss(pred_growth, grth).item() * num_samples
-                mae += F.l1_loss(pred_growth, grth).item() * num_samples
-
-                growth_array = np.concatenate(
-                    (growth_array, grth.cpu().numpy().flatten()))
-                pred_array = np.concatenate(
-                    (pred_array, pred_growth.cpu().numpy().flatten()))
-
-            mse /= len(val_loader.dataset)
-            mae /= len(val_loader.dataset)
-            r2 = r2_score(y_pred=pred_array, y_true=growth_array)
-
-            mse_list.append(mse)
-            mae_list.append(mae)
-            r2_list.append(r2)
-
-            print('\t\t%-6s \t MSE: %8.2f \t MAE: %8.2f \t R2: %+4.2f' %
-                  (val_loader.dataset.data_source, mse, mae, r2))
-
-    return mse_list, mae_list, r2_list
-
-
-def train_clf(
-        device: torch.device,
-
-        category_clf_net: nn.Module,
-        site_clf_net: nn.Module,
-        type_clf_net: nn.Module,
-        data_loader: torch.utils.data.DataLoader,
-
-        max_num_batches: int,
-        optimizer: torch.optim, ):
-
-    category_clf_net.train()
-    site_clf_net.train()
-    type_clf_net.train()
-
-    for batch_idx, (rnaseq, data_src, cl_site, cl_type, cl_category) \
-            in enumerate(data_loader):
-
-        if batch_idx >= max_num_batches:
-            break
-
-        rnaseq, data_src, cl_site, cl_type, cl_category = \
-            rnaseq.to(device), data_src.to(device), cl_site.to(device), \
-            cl_type.to(device), cl_category.to(device)
-
-        category_clf_net.zero_grad()
-        site_clf_net.zero_grad()
-        type_clf_net.zero_grad()
-
-        out_category = category_clf_net(rnaseq, data_src)
-        out_site = site_clf_net(rnaseq, data_src)
-        out_type = type_clf_net(rnaseq, data_src)
-
-        F.nll_loss(out_category, cl_category).backward()
-        F.nll_loss(out_site, cl_site).backward()
-        F.nll_loss(out_type, cl_type).backward()
-
-        optimizer.step()
-
-
-def valid_clf(
-        device: torch.device,
-
-        category_clf_net: nn.Module,
-        site_clf_net: nn.Module,
-        type_clf_net: nn.Module,
-        data_loader: torch.utils.data.DataLoader, ):
-
-    category_clf_net.eval()
-    site_clf_net.eval()
-    type_clf_net.eval()
-
-    correct_category = 0
-    correct_site = 0
-    correct_type = 0
-
-    with torch.no_grad():
-        for rnaseq, data_src, cl_site, cl_type, cl_category in data_loader:
-
-            rnaseq, data_src, cl_site, cl_type, cl_category = \
-                rnaseq.to(device), data_src.to(device), cl_site.to(device), \
-                cl_type.to(device), cl_category.to(device)
-
-            out_category = category_clf_net(rnaseq, data_src)
-            out_site = site_clf_net(rnaseq, data_src)
-            out_type = type_clf_net(rnaseq, data_src)
-
-            pred_category = out_category.max(1, keepdim=True)[1]
-            pred_site = out_site.max(1, keepdim=True)[1]
-            pred_type = out_type.max(1, keepdim=True)[1]
-
-            correct_category += pred_category.eq(
-                cl_category.view_as(pred_category)).sum().item()
-            correct_site += pred_site.eq(
-                cl_site.view_as(pred_site)).sum().item()
-            correct_type += pred_type.eq(
-                cl_type.view_as(pred_type)).sum().item()
-
-    # Get overall accuracy
-    category_acc = 100. * correct_category / len(data_loader.dataset)
-    site_acc = 100. * correct_site / len(data_loader.dataset)
-    type_acc = 100. * correct_type / len(data_loader.dataset)
-
-    print('\tCell Line Classification: '
-          '\n\t\tCategory Accuracy: \t\t%5.2f%%; '
-          '\n\t\tSite Accuracy: \t\t\t%5.2f%%; '
-          '\n\t\tType Accuracy: \t\t\t%5.2f%%'
-          % (category_acc, site_acc, type_acc))
-
-    return category_acc, site_acc, type_acc
 
 
 def main():
@@ -281,11 +103,11 @@ def main():
                         help='dimension of layers for drug response block')
     parser.add_argument('--resp_num_layers_per_block', type=int, default=2,
                         help='number of layers for drug response res block')
-    parser.add_argument('--resp_num_blocks', type=int, default=3,
+    parser.add_argument('--resp_num_blocks', type=int, default=2,
                         help='number of residual blocks for drug response')
     parser.add_argument('--resp_num_layers', type=int, default=2,
                         help='number of layers for drug response')
-    parser.add_argument('--resp_dropout', type=float, default=0.2,
+    parser.add_argument('--resp_dropout', type=float, default=0.0,
                         help='dropout of residual blocks for drug response')
     parser.add_argument('--resp_activation', type=str, default='none',
                         help='activation for response prediction output',
@@ -555,13 +377,13 @@ def main():
         clf_lr_decay.step(epoch)
 
         # Training cell line classifier
-        train_clf(device=device,
-                  category_clf_net=category_clf_net,
-                  site_clf_net=site_clf_net,
-                  type_clf_net=type_clf_net,
-                  data_loader=cl_class_trn_loader,
-                  max_num_batches=clf_max_num_batches,
-                  optimizer=clf_opt)
+        train_cl_clf(device=device,
+                     category_clf_net=category_clf_net,
+                     site_clf_net=site_clf_net,
+                     type_clf_net=type_clf_net,
+                     data_loader=cl_class_trn_loader,
+                     max_num_batches=clf_max_num_batches,
+                     optimizer=clf_opt)
 
         # Training drug response regressor
         train_resp(device=device,
@@ -577,11 +399,11 @@ def main():
 
             # Validating cell line classifier
             category_acc, site_acc, type_acc = \
-                valid_clf(device=device,
-                          category_clf_net=category_clf_net,
-                          site_clf_net=site_clf_net,
-                          type_clf_net=type_clf_net,
-                          data_loader=cl_class_val_loader, )
+                valid_cl_clf(device=device,
+                             category_clf_net=category_clf_net,
+                             site_clf_net=site_clf_net,
+                             type_clf_net=type_clf_net,
+                             data_loader=cl_class_val_loader, )
             val_acc.append([category_acc, site_acc, type_acc])
 
             # Validating drug response regressor
@@ -664,4 +486,5 @@ def main():
                  val_mae[best_epoch, index]))
 
 
+# Use ./launcher.py for more convenient calling and logging
 main()

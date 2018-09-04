@@ -9,8 +9,8 @@
 """
 import torch
 import torch.nn as nn
-from networks.residual_block import ResBlock
-from utils.network_config.weight_init import basic_weight_init
+from networks.structures.residual_block import ResBlock
+from networks.initialization.weight_init import basic_weight_init
 
 
 class RespNet(nn.Module):

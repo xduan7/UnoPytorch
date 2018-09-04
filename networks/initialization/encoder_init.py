@@ -19,12 +19,12 @@ from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
-from networks.encoder_net import EncNet
+from networks.structures.encoder_net import EncNet
 from utils.data_processing.cell_line_dataframes import get_rna_seq_df
 from utils.data_processing.drug_dataframes import get_drug_feature_df
 
 from utils.datasets.basic_dataset import DataFrameDataset
-from utils.network_config.optimizer import get_optimizer
+from utils.miscellaneous.optimizer import get_optimizer
 from utils.miscellaneous.random_seeding import seed_random_state
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,14 @@ def get_encoder(
     if os.path.exists(model_path):
         logger.debug('Loading existing autoencoder model from %s ...'
                      % model_path)
-        return torch.load(model_path).encoder
+
+        model = EncNet(input_dim=dataframe.shape[1],
+                       layer_dim=layer_dim,
+                       latent_dim=latent_dim,
+                       num_layers=num_layers,
+                       autoencoder=True).to(device)
+        model.load_state_dict(torch.load(model_path))
+        return model.encoder
 
     logger.debug('Constructing autoencoder from dataframe ...')
 
@@ -232,7 +239,7 @@ def get_encoder(
         os.makedirs(os.path.dirname(model_path))
     except FileExistsError:
         pass
-    torch.save(best_autoencoder, model_path)
+    torch.save(best_autoencoder.state_dict(), model_path)
     return best_autoencoder.encoder
 
 
@@ -396,8 +403,9 @@ def get_drug_encoder(
 
     drug_encoder_name = 'drug_net(%i*%i=>%i, %s, descriptor_scaling=%s, ' \
                         'nan_thresh=%.2f).pt' % \
-        (layer_dim, num_layers, latent_dim,
-         drug_feature_usage, descriptor_scaling, nan_threshold,)
+                        (layer_dim, num_layers, latent_dim,
+                         drug_feature_usage, descriptor_scaling,
+                         nan_threshold,)
     drug_encoder_path = os.path.join(model_folder, drug_encoder_name)
 
     drug_feature_df = get_drug_feature_df(data_root=data_root,
@@ -422,7 +430,6 @@ def get_drug_encoder(
 
 
 if __name__ == '__main__':
-
     logging.basicConfig(level=logging.DEBUG)
 
     # Test code for autoencoder with RNA sequence and drug features

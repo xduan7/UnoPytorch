@@ -8,7 +8,7 @@
 
 """
 import torch.nn as nn
-from utils.network_config.weight_init import basic_weight_init
+from networks.initialization.weight_init import basic_weight_init
 
 
 class ResBlock(nn.Module):
