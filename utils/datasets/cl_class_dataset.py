@@ -96,9 +96,6 @@ class CLClassDataset(data.Dataset):
         # Class-wise variables
         self.training = training
         self.__rand_state = rand_state
-
-        self.__int_dtype = int_dtype
-        self.__float_dtype = float_dtype
         self.__output_dtype = output_dtype
 
         # Feature scaling
@@ -122,7 +119,7 @@ class CLClassDataset(data.Dataset):
 
         # Put all the sequence in one column as list and specify dtype
         self.__rnaseq_df['seq'] = \
-            list(map(self.__float_dtype, self.__rnaseq_df.values.tolist()))
+            list(map(float_dtype, self.__rnaseq_df.values.tolist()))
 
         # Join the RNA sequence data with meta data. cl_df will have columns:
         # ['data_src', 'site', 'type', 'category', 'seq']
@@ -134,7 +131,7 @@ class CLClassDataset(data.Dataset):
         num_data_src = len(get_label_dict(data_root, 'data_src_dict.txt'))
         enc_data_src = encode_int_to_onehot(self.__cl_df['data_src'].tolist(),
                                             num_classes=num_data_src)
-        self.__cl_df['data_src'] = list(map(self.__int_dtype, enc_data_src))
+        self.__cl_df['data_src'] = list(map(int_dtype, enc_data_src))
 
         # Train/validation split ##############################################
         self.__split_drug_resp()

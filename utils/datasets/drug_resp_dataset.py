@@ -128,9 +128,6 @@ class DrugRespDataset(data.Dataset):
         self.data_source = data_src
         self.training = training
         self.__rand_state = rand_state
-
-        self.__int_dtype = int_dtype
-        self.__float_dtype = float_dtype
         self.__output_dtype = output_dtype
 
         # Feature scaling
