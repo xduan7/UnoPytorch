@@ -80,7 +80,7 @@ def valid_drug_qed(device: torch.device,
         mae /= len(data_loader.dataset)
         r2 = r2_score(y_pred=pred_array, y_true=target_array)
 
-    print('\tDrug Weighted QED Regression '
-          '\t MSE: %8.6f \t MAE: %8.6f \t R2: %+4.2f' % (mse, mae, r2))
+    print('\tDrug Weighted QED Regression\n'
+          '\t\tMSE: %8.6f \t MAE: %8.6f \t R2: %+4.2f' % (mse, mae, r2))
 
     return mse, mae, r2
