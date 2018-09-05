@@ -314,7 +314,7 @@ def get_drug_target_df(data_root: str,
 
     # Encode str formatted target families into integers
     df['TARGET'] = encode_label_to_int(data_root=data_root,
-                                       dict_name='drug_targets_dict.txt',
+                                       dict_name='drug_target_dict.txt',
                                        labels=df['TARGET'])
 
     # Convert the dtypes for a more efficient, compact dataframe

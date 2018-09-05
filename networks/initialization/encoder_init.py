@@ -339,8 +339,8 @@ def get_drug_encoder(
 
         # Drug feature usage and scaling
         drug_feature_usage: str,
-        descriptor_scaling: str,
-        nan_threshold: float,
+        dscptr_scaling: str,
+        dscptr_nan_threshold: float,
 
         # Autoencoder network configuration
         autoencoder_init: bool,
@@ -374,8 +374,8 @@ def get_drug_encoder(
 
         drug_feature_usage (str): Drug feature usage used. Choose between
             'fingerprint', 'descriptor', or 'both'.
-        descriptor_scaling (str): Scaling method for drug feature data.
-        nan_threshold (float): ratio of NaN values allowed for drug
+        dscptr_scaling (str): Scaling method for drug feature data.
+        dscptr_nan_threshold (float): ratio of NaN values allowed for drug
             features. Unqualified columns and rows will be dropped.
 
         autoencoder_init (bool): indicator for using autoencoder as drug
@@ -404,14 +404,15 @@ def get_drug_encoder(
     drug_encoder_name = 'drug_net(%i*%i=>%i, %s, descriptor_scaling=%s, ' \
                         'nan_thresh=%.2f).pt' % \
                         (layer_dim, num_layers, latent_dim,
-                         drug_feature_usage, descriptor_scaling,
-                         nan_threshold,)
+                         drug_feature_usage, dscptr_scaling,
+                         dscptr_nan_threshold,)
     drug_encoder_path = os.path.join(model_folder, drug_encoder_name)
 
-    drug_feature_df = get_drug_feature_df(data_root=data_root,
-                                          drug_feature_usage=drug_feature_usage,
-                                          dscptr_scaling=descriptor_scaling,
-                                          dscptr_nan_thresh=nan_threshold)
+    drug_feature_df = get_drug_feature_df(
+        data_root=data_root,
+        drug_feature_usage=drug_feature_usage,
+        dscptr_scaling=dscptr_scaling,
+        dscptr_nan_thresh=dscptr_nan_threshold)
 
     return get_encoder(
         model_path=drug_encoder_path,
@@ -464,8 +465,8 @@ if __name__ == '__main__':
         data_root='../../data/',
 
         drug_feature_usage='both',
-        descriptor_scaling='std',
-        nan_threshold=0.0,
+        dscptr_scaling='std',
+        dscptr_nan_threshold=0.0,
 
         autoencoder_init=True,
         layer_dim=4096,

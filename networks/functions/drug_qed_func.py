@@ -46,7 +46,7 @@ def train_drug_qed(device: torch.device,
         num_samples += target.shape[0]
         total_loss += loss.item() * target.shape[0]
 
-    print('\tDrug Weighted QED Regression Loss: %8.2f'
+    print('\tDrug Weighted QED Regression Loss: %8.6f'
           % (total_loss / num_samples))
 
 
@@ -59,8 +59,6 @@ def valid_drug_qed(device: torch.device,
     drug_qed_net.eval()
     mse, mae = 0., 0.
     target_array, pred_array = np.array([]), np.array([])
-
-    print('\tDrug Weighted QED Regression:')
 
     with torch.no_grad():
         for drug_feature, target in data_loader:
@@ -80,9 +78,9 @@ def valid_drug_qed(device: torch.device,
 
         mse /= len(data_loader.dataset)
         mae /= len(data_loader.dataset)
-        r2 = r2_score(y_pred=pred_array, y_true=data_loader)
+        r2 = r2_score(y_pred=pred_array, y_true=target_array)
 
     print('\tDrug Weighted QED Regression '
-          '\t MSE: %8.2f \t MAE: %8.2f \t R2: %+4.2f' % (mse, mae, r2))
+          '\t MSE: %8.6f \t MAE: %8.6f \t R2: %+4.2f' % (mse, mae, r2))
 
     return mse, mae, r2

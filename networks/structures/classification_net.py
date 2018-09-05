@@ -16,7 +16,7 @@ class ClfNet(nn.Module):
 
     def __init__(self,
                  encoder: nn.Module,
-                 latent_dim: int,
+                 input_dim: int,
 
                  condition_dim: int,
                  layer_dim: int,
@@ -29,7 +29,7 @@ class ClfNet(nn.Module):
 
         self.__clf_net = nn.Sequential()
 
-        prev_dim = latent_dim + condition_dim
+        prev_dim = input_dim + condition_dim
 
         for i in range(num_layers):
 

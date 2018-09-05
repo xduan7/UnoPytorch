@@ -16,7 +16,7 @@ class RgsNet(nn.Module):
 
     def __init__(self,
                  encoder: nn.Module,
-                 latent_dim: int,
+                 input_dim: int,
 
                  condition_dim: int,
                  layer_dim: int,
@@ -29,7 +29,7 @@ class RgsNet(nn.Module):
 
         self.__rgs_net = nn.Sequential()
 
-        prev_dim = latent_dim + condition_dim
+        prev_dim = input_dim + condition_dim
 
         for i in range(num_layers):
 
@@ -51,7 +51,7 @@ class RgsNet(nn.Module):
         # Weight Initialization ###############################################
         self.__rgs_net.apply(basic_weight_init)
 
-    def forward(self, samples, conditions):
+    def forward(self, samples, conditions=None):
         if conditions is None:
             return self.__rgs_net(self.__encoder(samples))
         else:
