@@ -118,20 +118,20 @@ if __name__ == '__main__':
             # Training and validation parameters ######################
             # Drug response regression training parameters
             '--resp_loss_func', 'mse',
-            '--resp_opt', 'SGD',
+            '--resp_opt', 'Adam',
             '--resp_lr', '1e-5',
 
             # Cell line classification training parameters
-            '--cl_clf_opt', 'SGD',
+            '--cl_clf_opt', 'Adam',
             '--cl_clf_lr', '1e-2',
 
             # Drug target family classification training parameters
-            '--drug_target_opt', 'SGD',
+            '--drug_target_opt', 'Adam',
             '--drug_target_lr', '1e-2',
 
             # Drug weighted QED regression training parameters
             '--drug_qed_loss_func', 'mse',
-            '--drug_qed_opt', 'SGD',
+            '--drug_qed_opt', 'Adam',
             '--drug_qed_lr', '1e-2',
 
             # Starting epoch for drug response validation
@@ -141,6 +141,7 @@ if __name__ == '__main__':
             '--early_stop_patience', '20',
 
             # Global/shared training parameters
+            '--l2_regularization', '1e-5',
             '--lr_decay_factor', '0.98',
             '--trn_batch_size', '32',
             '--val_batch_size', '256',

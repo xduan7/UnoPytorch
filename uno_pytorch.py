@@ -190,6 +190,8 @@ def main():
                              'response validation R2 scores ')
 
     # Global/shared training parameters
+    parser.add_argument('--l2_regularization', type=float, default=1e-5,
+                        help='L2 regularization for nn weights')
     parser.add_argument('--lr_decay_factor', type=float, default=0.95,
                         help='decay factor for learning rate')
     parser.add_argument('--trn_batch_size', type=int, default=32,
@@ -456,18 +458,22 @@ def main():
     # Optimizers, learning rate decay, and miscellaneous ######################
     resp_opt = get_optimizer(opt_type=args.resp_opt,
                              networks=resp_net,
-                             learning_rate=args.resp_lr)
+                             learning_rate=args.resp_lr,
+                             l2_regularization=args.l2_regularization)
     cl_clf_opt = get_optimizer(opt_type=args.cl_clf_opt,
                                networks=[category_clf_net,
                                          site_clf_net,
                                          type_clf_net],
-                               learning_rate=args.cl_clf_lr)
+                               learning_rate=args.cl_clf_lr,
+                               l2_regularization=args.l2_regularization)
     drug_target_opt = get_optimizer(opt_type=args.drug_target_opt,
                                     networks=drug_target_net,
-                                    learning_rate=args.drug_target_lr)
+                                    learning_rate=args.drug_target_lr,
+                                    l2_regularization=args.l2_regularization)
     drug_qed_opt = get_optimizer(opt_type=args.drug_qed_opt,
                                  networks=drug_qed_net,
-                                 learning_rate=args.drug_qed_lr)
+                                 learning_rate=args.drug_qed_lr,
+                                 l2_regularization=args.l2_regularization)
 
     resp_lr_decay = LambdaLR(optimizer=resp_opt,
                              lr_lambda=lambda e:
@@ -654,7 +660,8 @@ def main():
                  val_resp_mae[best_r2_epochs[index], index]))
 
     # Print best epoch and all the corresponding validation results
-    best_epoch = val_resp_r2.sum(axis=1).argmax()
+    # Picking the best epoch using R2 score from same data source
+    best_epoch = val_resp_r2[:, val_index].argmax()
     print('\n\tBest Results from the Same Model (Epoch = %3d):'
           % (best_epoch + 1))
     for index, clf_target in enumerate(clf_targets):
