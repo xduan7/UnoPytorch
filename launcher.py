@@ -18,8 +18,8 @@ if __name__ == '__main__':
 
     param_dict_list = [
 
-        # {'trn_src': ['GDSC'],
-        #  'val_srcs': ['GDSC', 'CCLE', 'gCSI'], },
+        # {'trn_src': ['gCSI'],
+        #  'val_srcs': ['gCSI'], },
 
         # Training + validation data sources for the transfer learning matrix
         {'trn_src': ['NCI60'],
@@ -107,31 +107,31 @@ if __name__ == '__main__':
             '--cl_clf_num_layers', '2',
 
             # Drug target family classification network
-            '--drug_target_layer_dim', '512',
+            '--drug_target_layer_dim', '1024',
             '--drug_target_num_layers', '2',
 
             # Drug weighted QED regression network
-            '--drug_qed_layer_dim', '512',
+            '--drug_qed_layer_dim', '1024',
             '--drug_qed_num_layers', '2',
             '--drug_qed_activation', 'sigmoid',
 
             # Training and validation parameters ######################
             # Drug response regression training parameters
             '--resp_loss_func', 'mse',
-            '--resp_opt', 'Adam',
+            '--resp_opt', 'SGD',
             '--resp_lr', '1e-5',
 
             # Cell line classification training parameters
-            '--cl_clf_opt', 'Adam',
-            '--cl_clf_lr', '1e-2',
+            '--cl_clf_opt', 'SGD',
+            '--cl_clf_lr', '8e-3',
 
             # Drug target family classification training parameters
-            '--drug_target_opt', 'Adam',
-            '--drug_target_lr', '1e-2',
+            '--drug_target_opt', 'SGD',
+            '--drug_target_lr', '2e-3',
 
             # Drug weighted QED regression training parameters
             '--drug_qed_loss_func', 'mse',
-            '--drug_qed_opt', 'Adam',
+            '--drug_qed_opt', 'SGD',
             '--drug_qed_lr', '1e-2',
 
             # Starting epoch for drug response validation
