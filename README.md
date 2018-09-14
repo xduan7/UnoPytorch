@@ -2,10 +2,6 @@
 Multi-tasking (drug response, cell line classification, etc.) Uno Implemented in PyTorch.
 
 ## Todos
-* More labels for the network like drug labels;
-* Dataloader hanging problem when num_workers set to more than 0;
-* Better pre-processing for drug descriptor integer features;
-* Network regularization with weight decay and/or dropout;
 * Hyper-parameter searching; 
 
 ## Prerequisites

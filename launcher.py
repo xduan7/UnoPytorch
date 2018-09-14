@@ -98,7 +98,7 @@ if __name__ == '__main__':
             '--resp_layer_dim', '2048',
             '--resp_num_layers_per_block', '2',
             '--resp_num_blocks', '4',
-            '--resp_num_layers', '2',
+            '--resp_num_layers', '0',
             '--resp_dropout', '0.0',
             '--resp_activation', 'none',
 
@@ -123,16 +123,16 @@ if __name__ == '__main__':
 
             # Cell line classification training parameters
             '--cl_clf_opt', 'SGD',
-            '--cl_clf_lr', '8e-3',
+            '--cl_clf_lr', '8e-3', # '8e-3',
 
             # Drug target family classification training parameters
             '--drug_target_opt', 'SGD',
-            '--drug_target_lr', '2e-3',
+            '--drug_target_lr', '2e-3', # '2e-3',
 
             # Drug weighted QED regression training parameters
             '--drug_qed_loss_func', 'mse',
             '--drug_qed_opt', 'SGD',
-            '--drug_qed_lr', '1e-2',
+            '--drug_qed_lr', '1e-2', # '1e-2',
 
             # Starting epoch for drug response validation
             '--resp_val_start_epoch', '0',
