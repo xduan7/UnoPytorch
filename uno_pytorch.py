@@ -16,7 +16,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from numpy.core.multiarray import ndarray
 from torch.optim.lr_scheduler import LambdaLR
 
 from networks.functions.cl_clf_func import train_cl_clf, valid_cl_clf
@@ -513,6 +512,7 @@ def main():
 
         print('=' * 80 + '\nTraining Epoch %3i:' % (epoch + 1))
         epoch_start_time = time.time()
+
         resp_lr_decay.step(epoch)
         cl_clf_lr_decay.step(epoch)
         drug_target_lr_decay.step(epoch)

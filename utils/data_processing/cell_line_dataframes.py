@@ -14,7 +14,8 @@ import numpy as np
 import pandas as pd
 
 from utils.data_processing.dataframe_scaling import scale_dataframe
-from utils.data_processing.label_encoding import encode_label_to_int
+from utils.data_processing.label_encoding import encode_label_to_int, \
+    get_label_dict
 from utils.miscellaneous.file_downloading import download_files
 
 
@@ -95,9 +96,7 @@ def get_rna_seq_df(data_root: str,
         # Note that after this name changing, some rows will have the same
         # name like 'GDSC.TT' and 'GDSC.T-T', but they are actually the same
         # Drop the duplicates for consistency
-        print(df.shape)
         df = df[~df.index.duplicated(keep='first')]
-        print(df.shape)
 
         # Scaling the descriptor with given scaling method
         df = scale_dataframe(df, rnaseq_scaling)
@@ -207,3 +206,13 @@ if __name__ == '__main__':
 
     print('=' * 80 + '\nCell line metadata dataframe head:')
     print(get_cl_meta_df(data_root='../../data/').head())
+
+    cl_meta_df = get_cl_meta_df(data_root='../../data/')
+    data_src_dict = get_label_dict('../../data/', 'data_src_dict.txt')
+
+    for data_src, enc_data_src in data_src_dict.items():
+        num_samples = len(
+            cl_meta_df.loc[cl_meta_df['data_src'] == enc_data_src])
+
+        print('%6i (%6.3f%%) samples from source %s' % (
+            num_samples, 100 * num_samples / len(cl_meta_df), data_src))

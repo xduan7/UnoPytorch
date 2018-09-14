@@ -32,8 +32,7 @@ class CLClassDataset(data.Dataset):
     __getitem__() to access the data.
 
     Each data item is made of a tuple of
-        (RNA_sequence, conditions, site, type, category)
-    where conditions is a list of [data_source, cell_description].
+        (RNA_sequence, cell_description, data_source, site, type, category)
 
     Note that all categorical labels are numeric, and the encoding
     dictionary can be found in the processed folder.
@@ -59,6 +58,7 @@ class CLClassDataset(data.Dataset):
 
             # Pre-processing settings
             rnaseq_scaling: str = 'std',
+            predict_target: str = 'class',
 
             # Partitioning (train/validation) and data usage settings
             rnaseq_feature_usage: str = 'source_scale',
@@ -82,8 +82,13 @@ class CLClassDataset(data.Dataset):
             float_dtype (type): float dtype for data storage in RAM.
             output_dtype (type): output dtype for neural network.
 
-            rnaseq_scaling (str): scaling method for RNA squence. Choose
+            rnaseq_scaling (str): scaling method for RNA sequence. Choose
                 between 'none', 'std', and 'minmax'.
+            predict_target (str): prediction target for RNA sequence. Note
+                that any labels except for target will be in one-hot
+                encoding, while the target will be encoded as integers.
+                Choose between 'none', 'class', and 'source'.
+
             rnaseq_feature_usage: RNA sequence data usage. Choose between
                 'source_scale' and 'combat'.
             validation_ratio (float): portion of validation data out of all
@@ -102,6 +107,10 @@ class CLClassDataset(data.Dataset):
         if rnaseq_scaling is None or rnaseq_scaling == '':
             rnaseq_scaling = 'none'
         self.__rnaseq_scaling = rnaseq_scaling.lower()
+        if predict_target is None or predict_target == '':
+            predict_target = 'none'
+        assert predict_target.lower() in ['none', 'class', 'source']
+        self.__predict_target = predict_target.lower()
 
         self.__rnaseq_feature_usage = rnaseq_feature_usage
         self.__validation_ratio = validation_ratio
@@ -127,11 +136,27 @@ class CLClassDataset(data.Dataset):
                                   self.__rnaseq_df[['seq']]],
                                  axis=1, join='inner')
 
-        # Encode data source from int into one-hot encoding
-        num_data_src = len(get_label_dict(data_root, 'data_src_dict.txt'))
-        enc_data_src = encode_int_to_onehot(self.__cl_df['data_src'].tolist(),
-                                            num_classes=num_data_src)
-        self.__cl_df['data_src'] = list(map(int_dtype, enc_data_src))
+        # Exclude 'GDC' and 'NCI60' during data source prediction
+        # GDC has too many samples while NCI60 has not enough
+        if self.__predict_target == 'source':
+            logger.warning('Taking out GDC and NCI60 samples to make dataset '
+                           'balanced among all data sources ...')
+            self.__cl_df = self.__cl_df[
+                ~self.__cl_df['data_src'].isin([2, 5])]
+
+        # Encode labels (except for prediction targets) into one-hot encoding
+        if self.__predict_target != 'source':
+            enc_data_src = encode_int_to_onehot(
+                self.__cl_df['data_src'].tolist(),
+                len(get_label_dict(data_root, 'data_src_dict.txt')))
+            self.__cl_df['data_src'] = list(map(int_dtype, enc_data_src))
+
+        if self.__predict_target != 'class':
+            for label in ['site', 'type', 'category']:
+                enc_label = encode_int_to_onehot(
+                    self.__cl_df[label].tolist(),
+                    len(get_label_dict(data_root, '%s_dict.txt' % label)))
+                self.__cl_df[label] = list(map(int_dtype, enc_label))
 
         # Train/validation split ##############################################
         self.__split_drug_resp()
@@ -171,27 +196,40 @@ class CLClassDataset(data.Dataset):
     def __getitem__(self, index):
         """rnaseq, data_src, site, type, category = cl_class_dataset[0]
 
+        Note that for all the labels that are not targets, they will be
+        encoded as one-hot arrays (np.array(output_dtype)). But if they are
+        prediction targets, PyTorch requires them to be encoded and returned
+        as integers (np.int64).
+
         Args:
             index (int): index for target data slice.
 
         Returns:
             tuple: a tuple containing the following five elements:
-                * RNA sequence data (np.ndarray of float);
-                * one-hot-encoded data source (np.ndarray of float);
-                * encoded cell line site (int);
-                * encoded cell line type (int);
-                * encoded cell line category (int)
+                * RNA sequence data (np.array of float);
+                * encoded data source (int or np.array of float);
+                * encoded cell line site (int or np.array of float);
+                * encoded cell line type (int or np.array of float);
+                * encoded cell line category (int or np.array of float).
         """
 
         cl_data = self.__cl_array[index]
 
         rnaseq = np.asarray(cl_data[4], dtype=self.__output_dtype)
-        data_src = np.array(cl_data[0], dtype=self.__output_dtype)
 
-        # Note that PyTorch requires np.int64 for classification labels
-        cl_site = np.int64(cl_data[1])
-        cl_type = np.int64(cl_data[2])
-        cl_category = np.int64(cl_data[3])
+        if self.__predict_target != 'source':
+            data_src = np.array(cl_data[0], dtype=self.__output_dtype)
+        else:
+            data_src = np.int64(cl_data[0])
+
+        if self.__predict_target != 'class':
+            cl_site = np.array(cl_data[1], dtype=self.__output_dtype)
+            cl_type = np.array(cl_data[2], dtype=self.__output_dtype)
+            cl_category = np.array(cl_data[3], dtype=self.__output_dtype)
+        else:
+            cl_site = np.int64(cl_data[1])
+            cl_type = np.int64(cl_data[2])
+            cl_category = np.int64(cl_data[3])
 
         return rnaseq, data_src, cl_site, cl_type, cl_category
 
@@ -231,7 +269,8 @@ if __name__ == '__main__':
     # Test DrugRespDataset class
     dataloader = torch.utils.data.DataLoader(
         CLClassDataset(data_root='../../data/',
+                       predict_target='source',
                        training=False),
         batch_size=512, shuffle=False)
 
-    tmp = dataloader.dataset[0]
+    # print(dataloader.dataset[0])
