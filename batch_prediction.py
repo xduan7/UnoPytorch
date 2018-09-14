@@ -60,7 +60,7 @@ def main():
 
     # Feature usage and partitioning settings
     parser.add_argument('--rnaseq_feature_usage', type=str,
-                        default='source_scale',
+                        default='combat',
                         help='RNA sequence data used',
                         choices=['source_scale', 'combat', ])
     parser.add_argument('--validation_ratio', type=float, default=0.2,
@@ -69,7 +69,7 @@ def main():
     # Network configuration ###################################################
     parser.add_argument('--layer_dim', type=int, default=256,
                         help='dimension of layers for RNA sequence')
-    parser.add_argument('--num_layers', type=int, default=8,
+    parser.add_argument('--num_layers', type=int, default=4,
                         help='number of layers for RNA sequence')
 
     # Training and validation parameters ######################################
@@ -91,7 +91,7 @@ def main():
     # Global/shared training parameters
     parser.add_argument('--l2_regularization', type=float, default=0.,
                         help='L2 regularization for nn weights')
-    parser.add_argument('--lr_decay_factor', type=float, default=1.,
+    parser.add_argument('--lr_decay_factor', type=float, default=0.98,
                         help='decay factor for learning rate')
     parser.add_argument('--trn_batch_size', type=int, default=32,
                         help='input batch size for training')
@@ -99,7 +99,7 @@ def main():
                         help='input batch size for validation')
     parser.add_argument('--max_num_batches', type=int, default=10000,
                         help='maximum number of batches per epoch')
-    parser.add_argument('--max_num_epochs', type=int, default=100,
+    parser.add_argument('--max_num_epochs', type=int, default=1000,
                         help='maximum number of epochs')
 
     # Miscellaneous settings ##################################################
