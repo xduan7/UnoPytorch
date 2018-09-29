@@ -2,6 +2,9 @@
 Multi-tasking (drug response, cell line classification, etc.) Uno Implemented in PyTorch.
 
 ## Todos
+* Error analysis for drug reponse (what kind of drugs/cells are more prone to larger errors);
+* Uncertainty quantification (http://mlg.eng.cam.ac.uk/yarin/blog_3d801aa532c1ce.html#uncertainty-sense, https://github.com/whilo/bdropout/blob/master/gp_dropout.py);
+* Inferencing with quantization (integer or half-precision);
 * Hyper-parameter searching; 
 
 ## Prerequisites
