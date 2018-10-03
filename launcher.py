@@ -18,8 +18,8 @@ if __name__ == '__main__':
 
     param_dict_list = [
 
-        # {'trn_src': ['gCSI'],
-        #  'val_srcs': ['gCSI'], },
+        # {'trn_src': ['GDSC'],
+        #  'val_srcs': ['GDSC'], },
 
         # Training + validation data sources for the transfer learning matrix
         {'trn_src': ['NCI60'],
@@ -95,11 +95,11 @@ if __name__ == '__main__':
             '--autoencoder_init',
 
             # Drug response regression network
-            '--resp_layer_dim', '2048',
+            '--resp_layer_dim', '4096',
             '--resp_num_layers_per_block', '2',
             '--resp_num_blocks', '4',
             '--resp_num_layers', '0',
-            '--resp_dropout', '0.0',
+            '--resp_dropout', '0.05',
             '--resp_activation', 'none',
 
             # Cell line classification network(s)
@@ -121,24 +121,30 @@ if __name__ == '__main__':
             '--resp_opt', 'SGD',
             '--resp_lr', '1e-5',
 
+            # Drug response uncertainty quantification parameters
+            '--resp_uq',
+            '--resp_uq_dropout', '0.1',
+            '--resp_uq_length_scale', '0.01',
+            '--resp_uq_num_runs', '10',
+
             # Cell line classification training parameters
             '--cl_clf_opt', 'SGD',
-            '--cl_clf_lr', '8e-3', # '8e-3',
+            '--cl_clf_lr', '8e-3',
 
             # Drug target family classification training parameters
             '--drug_target_opt', 'SGD',
-            '--drug_target_lr', '2e-3', # '2e-3',
+            '--drug_target_lr', '2e-3',
 
             # Drug weighted QED regression training parameters
             '--drug_qed_loss_func', 'mse',
             '--drug_qed_opt', 'SGD',
-            '--drug_qed_lr', '1e-2', # '1e-2',
+            '--drug_qed_lr', '1e-2',
 
             # Starting epoch for drug response validation
             '--resp_val_start_epoch', '0',
 
             # Early stopping based on R2 score of drug response
-            '--early_stop_patience', '20',
+            '--early_stop_patience', '5',
 
             # Global/shared training parameters
             '--l2_regularization', '1e-5',

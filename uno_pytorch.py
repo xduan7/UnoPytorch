@@ -154,6 +154,19 @@ def main():
     parser.add_argument('--resp_lr', type=float, default=1e-5,
                         help='learning rate for drug response regression')
 
+    # Drug response uncertainty quantification parameters
+    parser.add_argument('--resp_uq', action='store_true',
+                        help='indicator of drug response uncertainty '
+                             'quantification using dropouts')
+    parser.add_argument('--resp_uq_dropout', type=float, default=0.5,
+                        help='dropout rate for uncertainty quantification')
+    parser.add_argument('--resp_uq_length_scale', type=float, default=1.0,
+                        help='Prior length-scale that captures our belief '
+                             'over the function frequency')
+    parser.add_argument('--resp_uq_num_runs', type=int, default=100,
+                        help='number of predictions (runs) for uncertainty '
+                             'quantification')
+
     # Cell line classification training parameters
     parser.add_argument('--cl_clf_opt', type=str, default='SGD',
                         help='optimizer for cell line classification',
@@ -508,6 +521,11 @@ def main():
         if loader.dataset.data_source == args.trn_src:
             val_index = idx
 
+    # Calculate Tau for uncertainty quantification
+    resp_uq_tau \
+        = args.resp_uq_length_scale ** 2 * (1 - args.resp_uq_dropout) / \
+          (2 * len(drug_resp_trn_loader.dataset) * args.l2_regularization)
+
     for epoch in range(args.max_num_epochs):
 
         print('=' * 80 + '\nTraining Epoch %3i:' % (epoch + 1))
@@ -583,7 +601,12 @@ def main():
             resp_mse, resp_mae, resp_r2 = \
                 valid_resp(device=device,
                            resp_net=resp_net,
-                           data_loaders=drug_resp_val_loaders)
+                           data_loaders=drug_resp_val_loaders,
+
+                           resp_uq=args.resp_uq,
+                           resp_uq_tau=resp_uq_tau,
+                           resp_uq_dropout=args.resp_uq_dropout,
+                           resp_uq_num_runs=args.resp_uq_num_runs)
 
             # Save the validation results in nested list
             val_resp_mse.append(resp_mse)

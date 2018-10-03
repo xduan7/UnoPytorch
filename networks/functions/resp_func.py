@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
 
 def train_resp(device: torch.device,
@@ -53,9 +53,17 @@ def train_resp(device: torch.device,
 def valid_resp(device: torch.device,
 
                resp_net: nn.Module,
-               data_loaders: torch.utils.data.DataLoader, ):
+               data_loaders: torch.utils.data.DataLoader,
 
-    resp_net.eval()
+               resp_uq: bool = False,
+               resp_uq_num_runs: int = 100,
+               resp_uq_dropout: float = 0.5,
+               resp_uq_tau: float = 0.0):
+
+    if resp_uq:
+        resp_net.train()
+    else:
+        resp_net.eval()
 
     mse_list = []
     mae_list = []
@@ -63,17 +71,45 @@ def valid_resp(device: torch.device,
 
     print('\tDrug Response Regression:')
 
+    resp_net.half()
     with torch.no_grad():
         for val_loader in data_loaders:
 
             mse, mae = 0., 0.
-            growth_array, pred_array = np.array([]), np.array([])
+            growth_array, pred_array, uq_array = \
+                np.array([]), np.array([]), np.array([])
 
             for rnaseq, drug_feature, conc, grth in val_loader:
+
                 rnaseq, drug_feature, conc, grth = \
-                    rnaseq.to(device), drug_feature.to(device), \
-                    conc.to(device), grth.to(device)
-                pred_growth = resp_net(rnaseq, drug_feature, conc)
+                    rnaseq.to(device).half(), drug_feature.to(device).half(), \
+                    conc.to(device).half(), grth.to(device).half()
+
+                # With uncertainty quantification
+                if resp_uq:
+                    pred = [
+                        resp_net(
+                            rnaseq,
+                            drug_feature,
+                            conc,
+                            resp_uq_dropout).view(-1)
+                        for _ in range(resp_uq_num_runs)]
+
+                    # print(pred)
+
+                    # pred_growth = torch.Tensor(pred_growth)
+                    pred = torch.stack(pred)
+                    # print(pred_growth.shape)
+
+                    # uq = (pred.var(dim=0) + resp_uq_tau**-1).view(-1, 1)
+                    uq = (pred.var(dim=0)).view(-1, 1)
+                    uq_array = np.concatenate(
+                        (uq_array, uq.cpu().numpy().flatten()))
+
+                    # pred_growth = pred.mean(dim=0).view(-1, 1)
+                    # print(pred_growth.shape)
+
+                pred_growth = resp_net(rnaseq, drug_feature, conc, dropout=0)
 
                 num_samples = conc.shape[0]
                 mse += F.mse_loss(pred_growth, grth).item() * num_samples
@@ -95,4 +131,42 @@ def valid_resp(device: torch.device,
             print('\t\t%-6s \t MSE: %8.2f \t MAE: %8.2f \t R2: %+4.2f' %
                   (val_loader.dataset.data_source, mse, mae, r2))
 
+            if resp_uq:
+
+                assert len(uq_array) == len(pred_array)
+
+                print('\t\t\tAvg UQ = %6.2f' % uq_array.mean(), )
+
+                num_uq_partitions = 4
+                ordered_indices = np.argsort(uq_array)
+                partition_size = int(np.floor(uq_array / uq_array))
+
+                for i in range(num_uq_partitions):
+
+                    start_index = i * partition_size
+                    end_index = (i + 1) * partition_size
+
+                    partitioned_indices = \
+                        ordered_indices[start_index: end_index]
+
+                    partitioned_pred_array = \
+                        pred_array[partitioned_indices]
+                    partitioned_growth_array = \
+                        growth_array[partitioned_indices]
+
+                    print('\t\t\tPredictions with UQ [%6.2f, %6.2f]: '
+                          ' \t MSE: %8.2f \t MAE: %8.2f \t R2: %+4.2f' %
+                          (uq_array[ordered_indices[start_index]],
+                           uq_array[ordered_indices[end_index - 1]],
+                           mean_squared_error(
+                               y_pred=partitioned_pred_array,
+                               y_true=partitioned_growth_array),
+                           mean_absolute_error(
+                               y_pred=partitioned_pred_array,
+                               y_true=partitioned_growth_array),
+                           r2_score(
+                               y_pred=partitioned_pred_array,
+                               y_true=partitioned_growth_array)))
+
+    resp_net.float()
     return mse_list, mae_list, r2_list

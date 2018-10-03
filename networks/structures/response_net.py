@@ -9,6 +9,7 @@
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from networks.structures.residual_block import ResBlock
 from networks.initialization.weight_init import basic_weight_init
 
@@ -37,50 +38,58 @@ class RespNet(nn.Module):
         self.__drug_encoder = drug_encoder
 
         # Layer construction ##################################################
-        # Network for response prediction
-        self.__resp_net = nn.Sequential()
+        self.__dropout = resp_dropout
+        self.__activation = resp_activation
+        self.total_num_layers = \
+            2 + resp_num_layers_per_block * resp_num_blocks + resp_num_layers
 
-        # Reduce the dimension
-        self.__resp_net.add_module(
-            'dense_0',  nn.Linear(gene_latent_dim + drug_latent_dim + 1,
-                                  resp_layer_dim))
+        self.__resp_net = nn.ModuleList([])
+        self.__resp_net.append(
+            nn.Linear(gene_latent_dim + drug_latent_dim + 1, resp_layer_dim))
 
-        self.__resp_net.add_module('activation_0', nn.ReLU())
-
-        # Residual blocks
         for i in range(resp_num_blocks):
-            self.__resp_net.add_module(
-                'residual_block_%d' % i,
+            self.__resp_net.append(
                 ResBlock(layer_dim=resp_layer_dim,
                          num_layers=resp_num_layers_per_block,
                          dropout=resp_dropout))
 
-        # Dense layers
-        for i in range(1, resp_num_layers + 1):
-            self.__resp_net.add_module('dense_%d' % i,
-                                       nn.Linear(resp_layer_dim,
-                                                 resp_layer_dim))
+        for i in range(resp_num_layers):
+            self.__resp_net.append(nn.Linear(resp_layer_dim, resp_layer_dim))
 
-            if resp_dropout > 0.:
-                self.__resp_net.add_module('dropout_%d' % i,
-                                           nn.Dropout(resp_dropout))
-
-            self.__resp_net.add_module('res_relu_%d' % i, nn.ReLU())
-
-        # Last layer for regression
-        self.__resp_net.add_module('dense_out', nn.Linear(resp_layer_dim, 1))
-
-        if resp_activation.lower() == 'sigmoid':
-            self.__resp_net.add_module('activation', nn.Sigmoid())
-        elif resp_activation.lower() == 'tanh':
-            self.__resp_net.add_module('activation', nn.Tanh())
-        else:
-            pass
+        self.__resp_net.append(nn.Linear(resp_layer_dim, 1))
 
         # Weight Initialization ###############################################
         self.__resp_net.apply(basic_weight_init)
 
-    def forward(self, rnaseq, drug_feature, concentration):
-        return self.__resp_net(torch.cat((self.__gene_encoder(rnaseq),
-                                          self.__drug_encoder(drug_feature),
-                                          concentration), dim=1))
+    def forward(self, rnaseq, drug_feature, concentration, dropout=None):
+
+        if dropout is None:
+            p = self.__dropout
+        else:
+            if not self.training:
+                raise ValueError('Testing mode with specified dropout rate')
+            p = dropout
+
+        x = torch.cat((self.__gene_encoder(rnaseq),
+                       self.__drug_encoder(drug_feature),
+                       concentration), dim=1)
+
+        for i, layer in enumerate(self.__resp_net):
+
+            if type(layer) == ResBlock:
+                x = layer(x, dropout)
+            else:
+                x = F.dropout(x, p=p, training=self.training)
+                x = layer(x)
+
+                if i < len(self.__resp_net) - 1:
+                    x = F.relu(x)
+                else:
+                    if self.__activation.lower() == 'sigmoid':
+                        x = F.sigmoid(x)
+                    elif self.__activation.lower() == 'tanh':
+                        x = F.tanh(x)
+                    else:
+                        pass
+
+        return x

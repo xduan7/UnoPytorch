@@ -8,40 +8,51 @@
 
 """
 import torch.nn as nn
+import torch.nn.functional as F
 from networks.initialization.weight_init import basic_weight_init
 
 
 class ResBlock(nn.Module):
 
     def __init__(self,
+
                  layer_dim: int,
                  num_layers: int,
+
                  dropout: float):
 
         super(ResBlock, self).__init__()
 
+        self.__dropout = dropout
+
         # Layer construction ##################################################
-        self.block = nn.Sequential()
-
-        for i in range(num_layers):
-
-            self.block.add_module('res_dense_%d' % i,
-                                  nn.Linear(layer_dim, layer_dim))
-
-            if dropout > 0.:
-                self.block.add_module('res_dropout_%d' % i,
-                                      nn.Dropout(dropout))
-
-            if i != (num_layers - 1):
-                self.block.add_module('res_relu_%d' % i, nn.ReLU())
-
-        self.activation = nn.ReLU()
+        self.__layers = nn.ModuleList(
+            [nn.Linear(layer_dim, layer_dim) for _ in range(num_layers)])
 
         # Weight Initialization ###############################################
-        self.block.apply(basic_weight_init)
+        self.apply(basic_weight_init)
 
-    def forward(self, x):
-        return self.activation(self.block(x) + x)
+    def forward(self, x, dropout=None):
+
+        if dropout is None:
+            p = self.__dropout
+        else:
+            if not self.training:
+                raise ValueError('Testing mode with specified dropout rate')
+            p = dropout
+
+        x0 = None
+
+        for i, layer in enumerate(self.__layers):
+
+            x = F.dropout(x, p=p, training=self.training)
+            x0 = x if i == 0 else x0
+            x = layer(x)
+            x = F.relu(x)
+
+        assert x0 is not None
+
+        return x0 + x
 
 
 if __name__ == '__main__':
