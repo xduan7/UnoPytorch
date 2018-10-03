@@ -135,11 +135,13 @@ def valid_resp(device: torch.device,
 
                 assert len(uq_array) == len(pred_array)
 
-                print('\t\t\tAvg UQ = %6.2f' % uq_array.mean(), )
+                print('\t\t\tUncertainty Quantification Analysis. \n'
+                      '\t\t\tAvg UQ = %8.2f' % uq_array.mean(), )
 
-                num_uq_partitions = 4
+                num_uq_partitions = 5
                 ordered_indices = np.argsort(uq_array)
-                partition_size = int(np.floor(uq_array / uq_array))
+                partition_size = \
+                    int(np.floor(len(uq_array) / num_uq_partitions))
 
                 for i in range(num_uq_partitions):
 
@@ -154,7 +156,7 @@ def valid_resp(device: torch.device,
                     partitioned_growth_array = \
                         growth_array[partitioned_indices]
 
-                    print('\t\t\tPredictions with UQ [%6.2f, %6.2f]: '
+                    print('\t\t\tPredictions with UQ [%10.2f, %10.2f]: '
                           ' \t MSE: %8.2f \t MAE: %8.2f \t R2: %+4.2f' %
                           (uq_array[ordered_indices[start_index]],
                            uq_array[ordered_indices[end_index - 1]],

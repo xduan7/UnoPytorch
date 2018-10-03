@@ -125,7 +125,7 @@ if __name__ == '__main__':
             '--resp_uq',
             '--resp_uq_dropout', '0.1',
             '--resp_uq_length_scale', '0.01',
-            '--resp_uq_num_runs', '10',
+            '--resp_uq_num_runs', '100',
 
             # Cell line classification training parameters
             '--cl_clf_opt', 'SGD',
@@ -141,7 +141,7 @@ if __name__ == '__main__':
             '--drug_qed_lr', '1e-2',
 
             # Starting epoch for drug response validation
-            '--resp_val_start_epoch', '0',
+            '--resp_val_start_epoch', '20',
 
             # Early stopping based on R2 score of drug response
             '--early_stop_patience', '5',
