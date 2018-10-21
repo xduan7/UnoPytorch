@@ -7,7 +7,8 @@
     File Description:   
 
 """
-
+import errno
+import os
 import argparse
 import json
 import time
@@ -214,6 +215,11 @@ def main():
                         help='maximum number of batches per epoch')
     parser.add_argument('--max_num_epochs', type=int, default=100,
                         help='maximum number of epochs')
+
+    # Validation results directory
+    parser.add_argument('--val_results_dir', type=str, default=None,
+                        help='directory for saved validation results. '
+                             'Set to None to skip results saving')
 
     # Miscellaneous settings ##################################################
     parser.add_argument('--multi_gpu', action='store_true', default=False,
@@ -514,17 +520,20 @@ def main():
     patience = 0
     start_time = time.time()
 
+    # Create folder for validation results if not exist
+    if args.val_results_dir is not None:
+        try:
+            os.makedirs(args.val_results_dir)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+
     # Early stopping is decided on the validation set with the same
     # data source as the training dataloader
     val_index = 0
     for idx, loader in enumerate(drug_resp_val_loaders):
         if loader.dataset.data_source == args.trn_src:
             val_index = idx
-
-    # Calculate Tau for uncertainty quantification
-    resp_uq_tau \
-        = args.resp_uq_length_scale ** 2 * (1 - args.resp_uq_dropout) / \
-          (2 * len(drug_resp_trn_loader.dataset) * args.l2_regularization)
 
     for epoch in range(args.max_num_epochs):
 
@@ -599,14 +608,18 @@ def main():
 
             # Validating drug response regressor
             resp_mse, resp_mae, resp_r2 = \
-                valid_resp(device=device,
+                valid_resp(epoch=epoch,
+                           trn_src=args.trn_src,
+                           device=device,
+
                            resp_net=resp_net,
                            data_loaders=drug_resp_val_loaders,
 
                            resp_uq=args.resp_uq,
-                           resp_uq_tau=resp_uq_tau,
                            resp_uq_dropout=args.resp_uq_dropout,
-                           resp_uq_num_runs=args.resp_uq_num_runs)
+                           resp_uq_num_runs=args.resp_uq_num_runs,
+
+                           val_results_dir=args.val_results_dir)
 
             # Save the validation results in nested list
             val_resp_mse.append(resp_mse)

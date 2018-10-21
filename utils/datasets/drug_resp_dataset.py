@@ -206,7 +206,8 @@ class DrugRespDataset(data.Dataset):
         return self.num_records
 
     def __getitem__(self, index):
-        """rnaseq, drug_feature, concentration, growth = dataset[0]
+        """drug_id, cell_id, rnaseq, drug_feature, concentration, growth \
+            = dataset[0]
 
         This function fetches a single sample of drug response data along
         with the corresponding drug features and RNA sequence.
@@ -230,15 +231,19 @@ class DrugRespDataset(data.Dataset):
         # get stuck at some point if all CPU cores are used.
 
         drug_resp = self.__drug_resp_array[index]
-        drug_feature = self.__drug_feature_dict[drug_resp[1]]
-        rnaseq = self.__rnaseq_dict[drug_resp[2]]
+
+        drug_id = drug_resp[1]
+        cell_id = drug_resp[2]
+
+        drug_feature = self.__drug_feature_dict[drug_id]
+        rnaseq = self.__rnaseq_dict[cell_id]
 
         drug_feature = drug_feature.astype(self.__output_dtype)
         rnaseq = rnaseq.astype(self.__output_dtype)
         concentration = np.array([drug_resp[3]], dtype=self.__output_dtype)
         growth = np.array([drug_resp[4]], dtype=self.__output_dtype)
 
-        return rnaseq, drug_feature, concentration, growth
+        return drug_id, cell_id, rnaseq, drug_feature, concentration, growth
 
     def __trim_dataframes(self):
         """self.__trim_dataframes(trim_data_source=True)

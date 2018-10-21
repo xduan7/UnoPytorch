@@ -38,10 +38,11 @@ if __name__ == '__main__':
          'val_srcs': ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI'], },
     ]
 
-    # for rnaseq_feature in ['source_scale', 'combat']:
     rnaseq_feature = 'source_scale'
 
-    # for resp_lr, resp_loss in zip(['1e-5'], ['mse']):
+    now = datetime.datetime.now()
+    val_results_dir = './results/saved_predictions(%02d%02d_%02d%02d)/' \
+        % (now.month, now.day, now.hour, now.minute)
 
     for param_dict in param_dict_list:
 
@@ -53,8 +54,7 @@ if __name__ == '__main__':
         now = datetime.datetime.now()
 
         # Save log with name = (training data source + time)
-        tee = Tee('./results/logs/' + rnaseq_feature +
-                  '/%s_(%02d%02d_%02d%02d).txt'
+        tee = Tee('./results/logs/%s_(%02d%02d_%02d%02d).txt'
                   % (param_dict['trn_src'],
                      now.month, now.day, now.hour, now.minute))
         sys.stdout = tee
@@ -125,7 +125,7 @@ if __name__ == '__main__':
             '--resp_uq',
             '--resp_uq_dropout', '0.1',
             '--resp_uq_length_scale', '0.01',
-            '--resp_uq_num_runs', '100',
+            '--resp_uq_num_runs', '32',
 
             # Cell line classification training parameters
             '--cl_clf_opt', 'SGD',
@@ -153,6 +153,9 @@ if __name__ == '__main__':
             '--val_batch_size', '256',
             '--max_num_batches', '1000',
             '--max_num_epochs', '1000',
+
+            # Validation results directory
+            '--val_results_dir', val_results_dir,
 
             # Miscellaneous settings ##################################
             # '--multi_gpu'

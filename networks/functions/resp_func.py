@@ -8,6 +8,8 @@
 
 """
 import numpy as np
+import pandas as pd
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -27,7 +29,7 @@ def train_resp(device: torch.device,
     total_loss = 0.
     num_samples = 0
 
-    for batch_idx, (rnaseq, drug_feature, conc, grth) \
+    for batch_idx, (*ids, rnaseq, drug_feature, conc, grth) \
             in enumerate(data_loader):
 
         if batch_idx >= max_num_batches:
@@ -50,7 +52,9 @@ def train_resp(device: torch.device,
           % (total_loss / num_samples))
 
 
-def valid_resp(device: torch.device,
+def valid_resp(epoch: int,
+               trn_src: str,
+               device: torch.device,
 
                resp_net: nn.Module,
                data_loaders: torch.utils.data.DataLoader,
@@ -58,7 +62,8 @@ def valid_resp(device: torch.device,
                resp_uq: bool = False,
                resp_uq_num_runs: int = 100,
                resp_uq_dropout: float = 0.5,
-               resp_uq_tau: float = 0.0):
+
+               val_results_dir: str = None):
 
     if resp_uq:
         resp_net.train()
@@ -75,11 +80,18 @@ def valid_resp(device: torch.device,
     with torch.no_grad():
         for val_loader in data_loaders:
 
+            results_filename = './[trn=%s][val=%s][epoch=%02i].csv' % (
+                trn_src, val_loader.dataset.data_source, epoch)
+            results_path = os.path.join(val_results_dir, results_filename)
+            results_array = np.array([]).reshape(
+                0, 5 + resp_uq_num_runs if resp_uq else 5)
+
             mse, mae = 0., 0.
             growth_array, pred_array, uq_array = \
                 np.array([]), np.array([]), np.array([])
 
-            for rnaseq, drug_feature, conc, grth in val_loader:
+            for drug_id, cell_id, rnaseq, drug_feature, conc, grth \
+                    in val_loader:
 
                 rnaseq, drug_feature, conc, grth = \
                     rnaseq.to(device).half(), drug_feature.to(device).half(), \
@@ -95,21 +107,52 @@ def valid_resp(device: torch.device,
                             resp_uq_dropout).view(-1)
                         for _ in range(resp_uq_num_runs)]
 
-                    # print(pred)
+                    pred_growth_uq = torch.stack(pred)
 
-                    # pred_growth = torch.Tensor(pred_growth)
-                    pred = torch.stack(pred)
-                    # print(pred_growth.shape)
-
-                    # uq = (pred.var(dim=0) + resp_uq_tau**-1).view(-1, 1)
-                    uq = (pred.var(dim=0)).view(-1, 1)
+                    uq = (pred_growth_uq.var(dim=0)).view(-1, 1)
                     uq_array = np.concatenate(
                         (uq_array, uq.cpu().numpy().flatten()))
 
                     # pred_growth = pred.mean(dim=0).view(-1, 1)
                     # print(pred_growth.shape)
 
+                # Without uncertainty quantification
                 pred_growth = resp_net(rnaseq, drug_feature, conc, dropout=0)
+
+                # Append the batch results into data structure
+                if resp_uq:
+                    # temp = np.concatenate(
+                    #     (np.array(drug_id).reshape((-1, 1)),
+                    #      np.array(cell_id).reshape((-1, 1)),
+                    #      conc.cpu().numpy().astype(np.float16),
+                    #      grth.cpu().numpy().astype(np.float16),
+                    #      pred_growth.cpu().numpy().astype(np.float16),
+                    #      torch.t(pred_growth_uq).cpu().numpy().
+                    #         astype(np.float16)), axis=1)
+                    # print(temp.nbytes)
+
+                    temp = np.concatenate(
+                        (np.array(drug_id).reshape((-1, 1)),
+                         np.array(cell_id).reshape((-1, 1)),
+                         conc.cpu().numpy(),
+                         grth.cpu().numpy(),
+                         pred_growth.cpu().numpy(),
+                         torch.t(pred_growth_uq).cpu().numpy()), axis=1)
+                    # print(temp.nbytes)
+
+                else:
+                    temp = np.concatenate(
+                        (np.array(drug_id).reshape((-1, 1)),
+                         np.array(cell_id).reshape((-1, 1)),
+                         conc.cpu().numpy(),
+                         grth.cpu().numpy(),
+                         pred_growth.cpu().numpy()), axis=1)
+
+
+                results_array = np.concatenate((results_array, temp))
+                # print(results_array.nbytes)
+                # results_array[start_index: start_index + len(temp), :] = temp
+                # start_index += len(temp)
 
                 num_samples = conc.shape[0]
                 mse += F.mse_loss(pred_growth, grth).item() * num_samples
@@ -120,6 +163,18 @@ def valid_resp(device: torch.device,
                 pred_array = np.concatenate(
                     (pred_array, pred_growth.cpu().numpy().flatten()))
 
+            # Save the results to file
+            col_names = ['drug_id', 'cell_id', 'concentration',
+                         'growth', 'predicted_growth', ]
+            if resp_uq:
+                col_names.extend(
+                    ['uq_%03i' % i for i in range(resp_uq_num_runs)])
+
+            results_dataframe = pd.DataFrame(results_array,
+                                             columns=col_names)
+            results_dataframe.to_csv(results_path, index=False)
+
+            # Evaluating validation results
             mse /= len(val_loader.dataset)
             mae /= len(val_loader.dataset)
             r2 = r2_score(y_pred=pred_array, y_true=growth_array)
