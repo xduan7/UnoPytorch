@@ -117,6 +117,7 @@ def get_rna_seq_df(data_root: str,
 
 
 def get_cl_meta_df(data_root: str,
+                   encoding: bool = True,
                    int_dtype: type = np.int8):
     """df = get_cl_meta_df('./data/')
 
@@ -131,6 +132,7 @@ def get_cl_meta_df(data_root: str,
 
     Args:
         data_root (str): path to the data root folder.
+        encoding (bool): indicator for encoding types/sites into integers.
         int_dtype (type): int dtype for storage in RAM.
 
     Returns:
@@ -141,7 +143,7 @@ def get_cl_meta_df(data_root: str,
     df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
 
     # If the dataframe already exists, load and continue ######################
-    if os.path.exists(df_path):
+    if os.path.exists(df_path) and encoding:
         df = pd.read_pickle(df_path)
 
     # Otherwise load from raw files, process it and save ######################
@@ -169,20 +171,22 @@ def get_cl_meta_df(data_root: str,
         df.columns = ['data_src', 'site', 'type', 'category']
 
         # Delete '-', which could be inconsistent between seq and meta
-        print(df.shape)
         df.index = df.index.str.replace('-', '')
-        print(df.shape)
 
         # Convert all the categorical data from text to numeric
-        columns = df.columns
-        dict_names = [i + '_dict.txt' for i in columns]
-        for col, dict_name in zip(columns, dict_names):
-            df[col] = encode_label_to_int(data_root=data_root,
-                                          dict_name=dict_name,
-                                          labels=df[col])
+        if encoding:
+            columns = df.columns
+            dict_names = [i + '_dict.txt' for i in columns]
+            for col, dict_name in zip(columns, dict_names):
+                df[col] = encode_label_to_int(data_root=data_root,
+                                              dict_name=dict_name,
+                                              labels=df[col])
 
-        # Convert data type into generic python types
-        df = df.astype(int)
+            # Convert data type into generic python types
+            df = df.astype(int)
+
+        else:
+            return df
 
         # save to disk for future usage
         try:

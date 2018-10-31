@@ -667,17 +667,20 @@ def main():
 
     for index, clf_target in enumerate(clf_targets):
         print('\t\t%-24s Best Accuracy: %.3f%% (Epoch = %3d)'
-              % (clf_target, best_acc[index], best_acc_epochs[index] + 1))
+              % (clf_target, best_acc[index],
+                 best_acc_epochs[index] + 1 + args.resp_val_start_epoch))
 
     # Print best predictions for drug classifiers and regressor
     print('\t\tDrug Target Family \t Best Accuracy: %.3f%% (Epoch = %3d)'
           % (np.max(val_drug_target_acc),
-             (np.argmax(val_drug_target_acc) + 1)))
+             (np.argmax(val_drug_target_acc) +
+              1 + args.resp_val_start_epoch)))
 
     print('\t\tDrug Weighted QED \t Best R2 Score: %+6.4f '
           '(Epoch = %3d, MSE = %8.6f, MAE = %8.6f)'
           % (np.max(val_drug_qed_r2),
-             (np.argmax(val_drug_qed_r2) + 1),
+             (np.argmax(val_drug_qed_r2) +
+              1 + args.resp_val_start_epoch),
              val_drug_qed_mse[np.argmax(val_drug_qed_r2)],
              val_drug_qed_mae[np.argmax(val_drug_qed_r2)]))
 
@@ -699,7 +702,7 @@ def main():
     # Picking the best epoch using R2 score from same data source
     best_epoch = val_resp_r2[:, val_index].argmax()
     print('\n\tBest Results from the Same Model (Epoch = %3d):'
-          % (best_epoch + 1))
+          % (best_epoch + 1 + args.resp_val_start_epoch))
     for index, clf_target in enumerate(clf_targets):
         print('\t\t%-24s Accuracy: %.3f%%'
               % (clf_target, val_cl_clf_acc[best_epoch, index]))
