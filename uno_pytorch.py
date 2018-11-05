@@ -521,12 +521,14 @@ def main():
     start_time = time.time()
 
     # Create folder for validation results if not exist
-    if args.val_results_dir is not None:
+    if args.val_results_dir.lower() != 'none':
         try:
             os.makedirs(args.val_results_dir)
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
+    else:
+        args.val_results_dir = None
 
     # Early stopping is decided on the validation set with the same
     # data source as the training dataloader

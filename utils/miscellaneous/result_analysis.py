@@ -87,7 +87,7 @@ def plot_error_bar_over_uq(num_bars: int,
                            epoch: int = None,
                            early_stop_patience: int = 5,
 
-                           error_type: str = 'mae',
+                           error_type: str = 'mse',
                            equal_partition: bool = True,
                            image_dir: str = '../../results/images/'):
 
@@ -172,11 +172,17 @@ def plot_error_bar_over_uq(num_bars: int,
         plt.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(),
                  label, ha='center', va='bottom')
 
-    plt.show()
+    # Save the plot into image folder
+    try:
+        os.makedirs(image_dir)
+    except FileExistsError:
+        pass
+    img_name = '%s_over_UQ_[trn=%s][val=%s][epoch=%02i].png' \
+               % (error_type.upper(), trn_src, val_src, epoch)
+    img_path = os.path.join(image_dir, img_name)
+    plt.savefig(img_path)
 
-    # TODO: Save the plot into image folder
-
-    return
+    plt.close('all')
 
 
 def plot_error_bar_over_cell(cl_class: str,
@@ -248,10 +254,17 @@ def plot_error_bar_over_cell(cl_class: str,
         plt.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(),
                  label, ha='center', va='bottom')
 
-    plt.show()
+    # Save the plot into image folder
+    try:
+        os.makedirs(image_dir)
+    except FileExistsError:
+        pass
+    img_name = '%s_over_CL_[trn=%s][val=%s][epoch=%02i].png' \
+               % (error_type.upper(), trn_src, val_src, epoch)
+    img_path = os.path.join(image_dir, img_name)
+    plt.savefig(img_path)
 
-
-    return
+    plt.close('all')
 
 
 def plot_metric_over_uq_cutoff(
@@ -276,15 +289,16 @@ if __name__ == '__main__':
     #     results_dir='../../results/saved_predictions(1021_1006)')
 
     # Test error versus uncertainty bar plot
-    # data_srcs = ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI']
-    # for trn_src in data_srcs:
-    #     for val_src in data_srcs:
-    #         plot_error_bar_over_uq(
-    #             num_bars=20,
-    #
-    #             trn_src=trn_src,
-    #             val_src=val_src,
-    #             results_dir='../../results/saved_predictions(1021_1006)')
+    data_srcs = ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI']
+    for trn_src in data_srcs:
+        for val_src in data_srcs:
+            plot_error_bar_over_uq(
+                num_bars=20,
+
+                trn_src=trn_src,
+                val_src=val_src,
+                results_dir='../../results/saved_predictions(1101_1459)',
+                image_dir='../../results/saved_predictions(1101_1459)/images/')
 
     # Test error versus cell line classes bar plot
     data_srcs = ['NCI60', 'CTRP', 'GDSC', 'CCLE', 'gCSI']
@@ -295,4 +309,7 @@ if __name__ == '__main__':
 
                 trn_src=trn_src,
                 val_src=val_src,
-                results_dir='../../results/saved_predictions(1021_1006)')
+                error_type='mae',
+                results_dir='../../results/saved_predictions(1101_1459)',
+                image_dir='../../results/saved_predictions(1101_1459)/images/')
+

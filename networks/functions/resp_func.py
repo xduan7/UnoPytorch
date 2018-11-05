@@ -80,9 +80,11 @@ def valid_resp(epoch: int,
     with torch.no_grad():
         for val_loader in data_loaders:
 
-            results_filename = './[trn=%s][val=%s][epoch=%02i].csv' % (
-                trn_src, val_loader.dataset.data_source, epoch + 1)
-            results_path = os.path.join(val_results_dir, results_filename)
+            if val_results_dir is not None:
+                results_filename = './[trn=%s][val=%s][epoch=%02i].csv' % (
+                    trn_src, val_loader.dataset.data_source, epoch + 1)
+                results_path = os.path.join(val_results_dir, results_filename)
+
             results_array = np.array([]).reshape(
                 0, 5 + resp_uq_num_runs if resp_uq else 5)
 
@@ -117,7 +119,7 @@ def valid_resp(epoch: int,
                     # print(pred_growth.shape)
 
                 # Without uncertainty quantification
-                pred_growth = resp_net(rnaseq, drug_feature, conc, dropout=0)
+                pred_growth = resp_net(rnaseq, drug_feature, conc, dropout=0.)
 
                 # Append the batch results into data structure
                 if resp_uq:
@@ -169,9 +171,10 @@ def valid_resp(epoch: int,
                 col_names.extend(
                     ['uq_%03i' % i for i in range(resp_uq_num_runs)])
 
-            results_dataframe = pd.DataFrame(results_array,
-                                             columns=col_names)
-            results_dataframe.to_csv(results_path, index=False)
+            if val_results_dir is not None:
+                results_dataframe = pd.DataFrame(results_array,
+                                                 columns=col_names)
+                results_dataframe.to_csv(results_path, index=False)
 
             # Evaluating validation results
             mse /= len(val_loader.dataset)

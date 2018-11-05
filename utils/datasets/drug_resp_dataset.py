@@ -423,11 +423,18 @@ class DrugRespDataset(data.Dataset):
                 self.__drug_resp_df['DRUG_ID'].isin(validation_drug_list)]
 
         else:
+            logger.warning('Stratified on drug + cell combo ...')
+
+            combo_list = [(cell + drug) for cell, drug in
+                          zip(self.__drug_resp_df['CELLNAME'].tolist(),
+                              self.__drug_resp_df['DRUG_ID'].tolist())]
+
             training_drug_resp_df, validation_drug_resp_df = \
                 train_test_split(self.__drug_resp_df,
                                  test_size=self.__validation_ratio,
                                  random_state=self.__rand_state,
-                                 shuffle=False)
+                                 stratify=combo_list,
+                                 shuffle=True)
 
         # Make sure that if not disjoint, the training/validation set should
         #  share the same drugs/cells

@@ -37,8 +37,8 @@ class ResBlock(nn.Module):
         if dropout is None:
             p = self.__dropout
         else:
-            if not self.training:
-                raise ValueError('Testing mode with specified dropout rate')
+            if (not self.training) and (dropout > 0.):
+                raise ValueError('Testing mode with non-zero dropout rate')
             p = dropout
 
         x0 = None

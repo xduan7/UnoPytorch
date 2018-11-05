@@ -77,7 +77,7 @@ if __name__ == '__main__':
             # Feature usage and partitioning settings
             '--rnaseq_feature_usage', rnaseq_feature,
             '--drug_feature_usage', 'both',
-            '--validation_ratio', '0.20',
+            '--validation_ratio', '0.2',
             # '--disjoint_drugs',
             '--disjoint_cells',
 
@@ -89,17 +89,17 @@ if __name__ == '__main__':
 
             '--drug_layer_dim', '4096',
             '--drug_num_layers', '2',
-            '--drug_latent_dim', '2048',
+            '--drug_latent_dim', '1024',
 
             # Using autoencoder for drug/sequence encoder init
             '--autoencoder_init',
 
             # Drug response regression network
-            '--resp_layer_dim', '4096',
+            '--resp_layer_dim', '2048',
             '--resp_num_layers_per_block', '2',
             '--resp_num_blocks', '4',
             '--resp_num_layers', '0',
-            '--resp_dropout', '0.05',
+            '--resp_dropout', '0.1',
             '--resp_activation', 'none',
 
             # Cell line classification network(s)
