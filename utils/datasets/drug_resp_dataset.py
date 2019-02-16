@@ -60,6 +60,7 @@ class DrugRespDataset(data.Dataset):
             output_dtype: type = np.float32,
 
             # Pre-processing settings
+            lat_scaling: str = 'none',
             grth_scaling: str = 'none',
             dscptr_scaling: str = 'std',
             rnaseq_scaling: str = 'std',
@@ -155,6 +156,7 @@ class DrugRespDataset(data.Dataset):
         self.__drug_feature_df = get_drug_feature_df(
             data_root=data_root,
             drug_feature_usage=drug_feature_usage,
+            lat_scaling=lat_scaling,
             dscptr_scaling=dscptr_scaling,
             dscptr_nan_thresh=dscptr_nan_threshold,
             int_dtype=int_dtype,

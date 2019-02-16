@@ -27,6 +27,7 @@ PROC_FOLDER = './processed/'
 ECFP_FILENAME = 'pan_drugs_dragon7_ECFP.tsv'
 PFP_FILENAME = 'pan_drugs_dragon7_PFP.tsv'
 DSCPTR_FILENAME = 'pan_drugs_dragon7_descriptors.tsv'
+LAT_FILENAME = 'drug_features_latent.tab'
 # Drug property file. Does not exist on FTP server.
 DRUG_PROP_FILENAME = 'combined.panther.targets'
 
@@ -177,10 +178,57 @@ def get_drug_dscptr_df(data_root: str,
     return df
 
 
+def get_drug_lat_df(data_root: str,
+                    lat_scaling: str,
+                    float_dtype: type = np.int8):
+    """
+    df = get_drug_latent_df('./data/')
+    """
+
+    df_filename = 'drug_lat_df(scaling=%s).pkl' % lat_scaling
+    df_path = os.path.join(data_root, PROC_FOLDER, df_filename)
+
+    # If the dataframe already exists, load and continue ######################
+    if os.path.exists(df_path):
+        df = pd.read_pickle(df_path)
+
+    # Otherwise load from raw files, process it and save ######################
+    else:
+        logger.debug('Processing drug latent dataframe ... ')
+
+        # Download the raw file if not exist
+        download_files(filenames=LAT_FILENAME,
+                       target_folder=os.path.join(data_root, RAW_FOLDER))
+
+        df = pd.read_csv(
+            os.path.join(data_root, RAW_FOLDER, LAT_FILENAME),
+            sep='\t',
+            header=0,
+            index_col=0)
+
+        # Scaling the descriptor with given scaling method
+        df = scale_dataframe(df, lat_scaling)
+
+        # Convert data type into generic python types
+        df = df.astype(float)
+
+        # save to disk for future usage
+        try:
+            os.makedirs(os.path.join(data_root, PROC_FOLDER))
+        except FileExistsError:
+            pass
+        df.to_pickle(df_path)
+
+    # Convert the dtypes for a more efficient, compact dataframe ##############
+    df = df.astype(float_dtype)
+    return df
+
+
 def get_drug_feature_df(data_root: str,
                         drug_feature_usage: str,
-                        dscptr_scaling: str,
-                        dscptr_nan_thresh: float,
+                        dscptr_scaling: str = None,
+                        dscptr_nan_thresh: float = None,
+                        lat_scaling: str = 'none',
                         int_dtype: type = np.int8,
                         float_dtype: type = np.float32):
     """df = get_drug_feature_df('./data/', 'both', 'std', 0.0)
@@ -222,9 +270,14 @@ def get_drug_feature_df(data_root: str,
                                   dscptr_scaling=dscptr_scaling,
                                   dscptr_nan_thresh=dscptr_nan_thresh,
                                   float_dtype=float_dtype)
+    elif drug_feature_usage == 'latent':
+        return get_drug_lat_df(data_root=data_root,
+                               lat_scaling=lat_scaling,
+                               float_dtype=float_dtype)
     else:
         logger.error('Drug feature must be one of \'fingerprint\', '
-                     '\'descriptor\', or \'both\'.', exc_info=True)
+                     '\'descriptor\', or \'both\', or \'latent\'.',
+                     exc_info=True)
         raise ValueError('Undefined drug feature %s.' % drug_feature_usage)
 
 
@@ -373,4 +426,9 @@ if __name__ == '__main__':
     print('=' * 80 + '\nDrug target families dataframe head:')
     print(get_drug_qed_df(data_root='../../data/', qed_scaling='none').head())
 
+    # Latent feature for drugs
+    print('=' * 80 + '\nDrug feature dataframe head:')
+    print(get_drug_feature_df(data_root='../../data/',
+                              drug_feature_usage='latent',
+                              lat_scaling='none').head())
 

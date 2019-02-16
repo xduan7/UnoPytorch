@@ -29,6 +29,7 @@ PROC_FOLDER = './processed/'
 CL_METADATA_FILENAME = 'combined_cl_metadata'
 RNASEQ_SOURCE_SCALE_FILENAME = 'combined_rnaseq_data_lincs1000_source_scale'
 RNASEQ_COMBAT_FILENAME = 'combined_rnaseq_data_lincs1000_combat'
+RNASEQ_LIVERMORE_FILENAME = 'combined_rnaseq_data_ae_clcd_v1'
 
 
 def get_rna_seq_df(data_root: str,
@@ -74,6 +75,8 @@ def get_rna_seq_df(data_root: str,
             raw_data_filename = RNASEQ_SOURCE_SCALE_FILENAME
         elif rnaseq_feature_usage == 'combat':
             raw_data_filename = RNASEQ_COMBAT_FILENAME
+        elif rnaseq_feature_usage == 'livermore':
+            raw_data_filename = RNASEQ_LIVERMORE_FILENAME
         else:
             logger.error('Unknown RNA feature %s.' % rnaseq_feature_usage,
                          exc_info=True)

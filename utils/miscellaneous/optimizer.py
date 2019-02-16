@@ -17,7 +17,7 @@ def get_optimizer(
         opt_type: str,
         networks: nn.Module or iter,
         learning_rate: float,
-        l2_regularization: float):
+        l2_regularization: float = 0.):
 
     if isinstance(networks, collections.Iterable):
         params = []

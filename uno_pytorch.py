@@ -58,6 +58,9 @@ def main():
                         help='validation list of sources for drug response')
 
     # Pre-processing for dataframes
+    parser.add_argument('--lat_scaling', type=str, default='std',
+                        help='scaling method for latent drug features',
+                        choices=SCALING_METHODS)
     parser.add_argument('--grth_scaling', type=str, default='std',
                         help='scaling method for drug response (growth)',
                         choices=SCALING_METHODS)
@@ -76,10 +79,11 @@ def main():
     # Feature usage and partitioning settings
     parser.add_argument('--rnaseq_feature_usage', type=str, default='combat',
                         help='RNA sequence data used',
-                        choices=['source_scale', 'combat', ])
+                        choices=['source_scale', 'combat', 'livermore'])
     parser.add_argument('--drug_feature_usage', type=str, default='both',
-                        help='drug features (fp and/or desc) used',
-                        choices=['fingerprint', 'descriptor', 'both', ])
+                        help='drug features (fp and/or desc, or lat) used',
+                        choices=['fingerprint', 'descriptor',
+                                 'both', 'latent'])
     parser.add_argument('--validation_ratio', type=float, default=0.2,
                         help='ratio for validation dataset')
     parser.add_argument('--disjoint_drugs', action='store_true',
@@ -257,6 +261,7 @@ def main():
         'float_dtype': np.float16,
         'output_dtype': np.float32,
 
+        'lat_scaling': args.lat_scaling,
         'grth_scaling': args.grth_scaling,
         'dscptr_scaling': args.dscptr_scaling,
         'rnaseq_scaling': args.rnaseq_scaling,
@@ -427,84 +432,84 @@ def main():
 
     print(resp_net)
 
-    # Sequence classifier for category, site, and type
-    cl_clf_net_kwargs = {
-        'encoder': gene_encoder,
-        'input_dim': args.gene_latent_dim,
-        'condition_dim': len(get_label_dict(DATA_ROOT, 'data_src_dict.txt')),
-        'layer_dim': args.cl_clf_layer_dim,
-        'num_layers': args.cl_clf_num_layers, }
-
-    category_clf_net = ClfNet(
-        num_classes=len(get_label_dict(DATA_ROOT, 'category_dict.txt')),
-        **cl_clf_net_kwargs).to(device)
-    site_clf_net = ClfNet(
-        num_classes=len(get_label_dict(DATA_ROOT, 'site_dict.txt')),
-        **cl_clf_net_kwargs).to(device)
-    type_clf_net = ClfNet(
-        num_classes=len(get_label_dict(DATA_ROOT, 'type_dict.txt')),
-        **cl_clf_net_kwargs).to(device)
-
-    # Classifier for drug target family prediction
-    drug_target_net = ClfNet(
-        encoder=drug_encoder,
-        input_dim=args.drug_latent_dim,
-        condition_dim=0,
-        layer_dim=args.drug_target_layer_dim,
-        num_layers=args.drug_target_num_layers,
-        num_classes=len(get_label_dict(DATA_ROOT, 'drug_target_dict.txt'))).\
-        to(device)
-
-    # Regressor for drug weighted QED prediction
-    drug_qed_net = RgsNet(
-        encoder=drug_encoder,
-        input_dim=args.drug_latent_dim,
-        condition_dim=0,
-        layer_dim=args.drug_qed_layer_dim,
-        num_layers=args.drug_qed_num_layers,
-        activation=args.drug_qed_activation).to(device)
+    # # Sequence classifier for category, site, and type
+    # cl_clf_net_kwargs = {
+    #     'encoder': gene_encoder,
+    #     'input_dim': args.gene_latent_dim,
+    #     'condition_dim': len(get_label_dict(DATA_ROOT, 'data_src_dict.txt')),
+    #     'layer_dim': args.cl_clf_layer_dim,
+    #     'num_layers': args.cl_clf_num_layers, }
+    #
+    # category_clf_net = ClfNet(
+    #     num_classes=len(get_label_dict(DATA_ROOT, 'category_dict.txt')),
+    #     **cl_clf_net_kwargs).to(device)
+    # site_clf_net = ClfNet(
+    #     num_classes=len(get_label_dict(DATA_ROOT, 'site_dict.txt')),
+    #     **cl_clf_net_kwargs).to(device)
+    # type_clf_net = ClfNet(
+    #     num_classes=len(get_label_dict(DATA_ROOT, 'type_dict.txt')),
+    #     **cl_clf_net_kwargs).to(device)
+    #
+    # # Classifier for drug target family prediction
+    # drug_target_net = ClfNet(
+    #     encoder=drug_encoder,
+    #     input_dim=args.drug_latent_dim,
+    #     condition_dim=0,
+    #     layer_dim=args.drug_target_layer_dim,
+    #     num_layers=args.drug_target_num_layers,
+    #     num_classes=len(get_label_dict(DATA_ROOT, 'drug_target_dict.txt'))).\
+    #     to(device)
+    #
+    # # Regressor for drug weighted QED prediction
+    # drug_qed_net = RgsNet(
+    #     encoder=drug_encoder,
+    #     input_dim=args.drug_latent_dim,
+    #     condition_dim=0,
+    #     layer_dim=args.drug_qed_layer_dim,
+    #     num_layers=args.drug_qed_num_layers,
+    #     activation=args.drug_qed_activation).to(device)
 
     # Multi-GPU settings
     if args.multi_gpu:
         resp_net = nn.DataParallel(resp_net)
-        category_clf_net = nn.DataParallel(category_clf_net)
-        site_clf_net = nn.DataParallel(site_clf_net)
-        type_clf_net = nn.DataParallel(type_clf_net)
-        drug_target_net = nn.DataParallel(drug_target_net)
-        drug_qed_net = nn.DataParallel(drug_qed_net)
+        # category_clf_net = nn.DataParallel(category_clf_net)
+        # site_clf_net = nn.DataParallel(site_clf_net)
+        # type_clf_net = nn.DataParallel(type_clf_net)
+        # drug_target_net = nn.DataParallel(drug_target_net)
+        # drug_qed_net = nn.DataParallel(drug_qed_net)
 
     # Optimizers, learning rate decay, and miscellaneous ######################
     resp_opt = get_optimizer(opt_type=args.resp_opt,
                              networks=resp_net,
                              learning_rate=args.resp_lr,
                              l2_regularization=args.l2_regularization)
-    cl_clf_opt = get_optimizer(opt_type=args.cl_clf_opt,
-                               networks=[category_clf_net,
-                                         site_clf_net,
-                                         type_clf_net],
-                               learning_rate=args.cl_clf_lr,
-                               l2_regularization=args.l2_regularization)
-    drug_target_opt = get_optimizer(opt_type=args.drug_target_opt,
-                                    networks=drug_target_net,
-                                    learning_rate=args.drug_target_lr,
-                                    l2_regularization=args.l2_regularization)
-    drug_qed_opt = get_optimizer(opt_type=args.drug_qed_opt,
-                                 networks=drug_qed_net,
-                                 learning_rate=args.drug_qed_lr,
-                                 l2_regularization=args.l2_regularization)
+    # cl_clf_opt = get_optimizer(opt_type=args.cl_clf_opt,
+    #                            networks=[category_clf_net,
+    #                                      site_clf_net,
+    #                                      type_clf_net],
+    #                            learning_rate=args.cl_clf_lr,
+    #                            l2_regularization=args.l2_regularization)
+    # drug_target_opt = get_optimizer(opt_type=args.drug_target_opt,
+    #                                 networks=drug_target_net,
+    #                                 learning_rate=args.drug_target_lr,
+    #                                 l2_regularization=args.l2_regularization)
+    # drug_qed_opt = get_optimizer(opt_type=args.drug_qed_opt,
+    #                              networks=drug_qed_net,
+    #                              learning_rate=args.drug_qed_lr,
+    #                              l2_regularization=args.l2_regularization)
 
     resp_lr_decay = LambdaLR(optimizer=resp_opt,
                              lr_lambda=lambda e:
                              args.lr_decay_factor ** e)
-    cl_clf_lr_decay = LambdaLR(optimizer=cl_clf_opt,
-                               lr_lambda=lambda e:
-                               args.lr_decay_factor ** e)
-    drug_target_lr_decay = LambdaLR(optimizer=drug_target_opt,
-                                    lr_lambda=lambda e:
-                                    args.lr_decay_factor ** e)
-    drug_qed_lr_decay = LambdaLR(optimizer=drug_qed_opt,
-                                 lr_lambda=lambda e:
-                                 args.lr_decay_factor ** e)
+    # cl_clf_lr_decay = LambdaLR(optimizer=cl_clf_opt,
+    #                            lr_lambda=lambda e:
+    #                            args.lr_decay_factor ** e)
+    # drug_target_lr_decay = LambdaLR(optimizer=drug_target_opt,
+    #                                 lr_lambda=lambda e:
+    #                                 args.lr_decay_factor ** e)
+    # drug_qed_lr_decay = LambdaLR(optimizer=drug_qed_opt,
+    #                              lr_lambda=lambda e:
+    #                              args.lr_decay_factor ** e)
 
     resp_loss_func = F.l1_loss if args.resp_loss_func == 'l1' \
         else F.mse_loss
@@ -543,33 +548,33 @@ def main():
         epoch_start_time = time.time()
 
         resp_lr_decay.step(epoch)
-        cl_clf_lr_decay.step(epoch)
-        drug_target_lr_decay.step(epoch)
-        drug_qed_lr_decay.step(epoch)
+        # cl_clf_lr_decay.step(epoch)
+        # drug_target_lr_decay.step(epoch)
+        # drug_qed_lr_decay.step(epoch)
 
-        # Training cell line classifier
-        train_cl_clf(device=device,
-                     category_clf_net=category_clf_net,
-                     site_clf_net=site_clf_net,
-                     type_clf_net=type_clf_net,
-                     data_loader=cl_clf_trn_loader,
-                     max_num_batches=args.max_num_batches,
-                     optimizer=cl_clf_opt)
-
-        # Training drug target classifier
-        train_drug_target(device=device,
-                          drug_target_net=drug_target_net,
-                          data_loader=drug_target_trn_loader,
-                          max_num_batches=args.max_num_batches,
-                          optimizer=drug_target_opt)
-
-        # Training drug weighted QED regressor
-        train_drug_qed(device=device,
-                       drug_qed_net=drug_qed_net,
-                       data_loader=drug_qed_trn_loader,
-                       max_num_batches=args.max_num_batches,
-                       loss_func=drug_qed_loss_func,
-                       optimizer=drug_qed_opt)
+        # # Training cell line classifier
+        # train_cl_clf(device=device,
+        #              category_clf_net=category_clf_net,
+        #              site_clf_net=site_clf_net,
+        #              type_clf_net=type_clf_net,
+        #              data_loader=cl_clf_trn_loader,
+        #              max_num_batches=args.max_num_batches,
+        #              optimizer=cl_clf_opt)
+        #
+        # # Training drug target classifier
+        # train_drug_target(device=device,
+        #                   drug_target_net=drug_target_net,
+        #                   data_loader=drug_target_trn_loader,
+        #                   max_num_batches=args.max_num_batches,
+        #                   optimizer=drug_target_opt)
+        #
+        # # Training drug weighted QED regressor
+        # train_drug_qed(device=device,
+        #                drug_qed_net=drug_qed_net,
+        #                data_loader=drug_qed_trn_loader,
+        #                max_num_batches=args.max_num_batches,
+        #                loss_func=drug_qed_loss_func,
+        #                optimizer=drug_qed_opt)
 
         # Training drug response regressor
         train_resp(device=device,
@@ -583,30 +588,30 @@ def main():
 
         if epoch >= args.resp_val_start_epoch:
 
-            # Validating cell line classifier
-            cl_category_acc, cl_site_acc, cl_type_acc = \
-                valid_cl_clf(device=device,
-                             category_clf_net=category_clf_net,
-                             site_clf_net=site_clf_net,
-                             type_clf_net=type_clf_net,
-                             data_loader=cl_clf_val_loader, )
-            val_cl_clf_acc.append([cl_category_acc, cl_site_acc, cl_type_acc])
-
-            # Validating drug target classifier
-            drug_target_acc = \
-                valid_drug_target(device=device,
-                                  drug_target_net=drug_target_net,
-                                  data_loader=drug_target_val_loader)
-            val_drug_target_acc.append(drug_target_acc)
-
-            # Validating drug weighted QED regressor
-            drug_qed_mse, drug_qed_mae, drug_qed_r2 = \
-                valid_drug_qed(device=device,
-                               drug_qed_net=drug_qed_net,
-                               data_loader=drug_qed_val_loader)
-            val_drug_qed_mse.append(drug_qed_mse)
-            val_drug_qed_mae.append(drug_qed_mae)
-            val_drug_qed_r2.append(drug_qed_r2)
+            # # Validating cell line classifier
+            # cl_category_acc, cl_site_acc, cl_type_acc = \
+            #     valid_cl_clf(device=device,
+            #                  category_clf_net=category_clf_net,
+            #                  site_clf_net=site_clf_net,
+            #                  type_clf_net=type_clf_net,
+            #                  data_loader=cl_clf_val_loader, )
+            # val_cl_clf_acc.append([cl_category_acc, cl_site_acc, cl_type_acc])
+            #
+            # # Validating drug target classifier
+            # drug_target_acc = \
+            #     valid_drug_target(device=device,
+            #                       drug_target_net=drug_target_net,
+            #                       data_loader=drug_target_val_loader)
+            # val_drug_target_acc.append(drug_target_acc)
+            #
+            # # Validating drug weighted QED regressor
+            # drug_qed_mse, drug_qed_mae, drug_qed_r2 = \
+            #     valid_drug_qed(device=device,
+            #                    drug_qed_net=drug_qed_net,
+            #                    data_loader=drug_qed_val_loader)
+            # val_drug_qed_mse.append(drug_qed_mse)
+            # val_drug_qed_mae.append(drug_qed_mae)
+            # val_drug_qed_r2.append(drug_qed_r2)
 
             # Validating drug response regressor
             resp_mse, resp_mae, resp_r2 = \
@@ -643,11 +648,11 @@ def main():
         print('Epoch Running Time: %.1f Seconds.'
               % (time.time() - epoch_start_time))
 
-    val_cl_clf_acc = np.array(val_cl_clf_acc).reshape(-1, 3)
+    # val_cl_clf_acc = np.array(val_cl_clf_acc).reshape(-1, 3)
     # val_drug_target_acc = np.array(val_drug_target_acc)
     # val_drug_qed_mse = np.array(val_drug_qed_mse)
     # val_resp_mae = np.array(val_resp_mae)
-    # val_resp_r2 = np.array(val_resp_r2)
+    val_resp_r2 = np.array(val_resp_r2)
     val_resp_mse, val_resp_mae, val_resp_r2 = \
         np.array(val_resp_mse).reshape(-1, len(args.val_srcs)), \
         np.array(val_resp_mae).reshape(-1, len(args.val_srcs)), \
@@ -660,31 +665,31 @@ def main():
     print('Overall Validation Results:\n')
 
     print('\tBest Results from Different Models (Epochs):')
-    # Print best accuracy for cell line classifiers
-    clf_targets = ['Cell Line Categories',
-                   'Cell Line Sites',
-                   'Cell Line Types', ]
-    best_acc = np.amax(val_cl_clf_acc, axis=0)
-    best_acc_epochs = np.argmax(val_cl_clf_acc, axis=0)
-
-    for index, clf_target in enumerate(clf_targets):
-        print('\t\t%-24s Best Accuracy: %.3f%% (Epoch = %3d)'
-              % (clf_target, best_acc[index],
-                 best_acc_epochs[index] + 1 + args.resp_val_start_epoch))
-
-    # Print best predictions for drug classifiers and regressor
-    print('\t\tDrug Target Family \t Best Accuracy: %.3f%% (Epoch = %3d)'
-          % (np.max(val_drug_target_acc),
-             (np.argmax(val_drug_target_acc) +
-              1 + args.resp_val_start_epoch)))
-
-    print('\t\tDrug Weighted QED \t Best R2 Score: %+6.4f '
-          '(Epoch = %3d, MSE = %8.6f, MAE = %8.6f)'
-          % (np.max(val_drug_qed_r2),
-             (np.argmax(val_drug_qed_r2) +
-              1 + args.resp_val_start_epoch),
-             val_drug_qed_mse[np.argmax(val_drug_qed_r2)],
-             val_drug_qed_mae[np.argmax(val_drug_qed_r2)]))
+    # # Print best accuracy for cell line classifiers
+    # clf_targets = ['Cell Line Categories',
+    #                'Cell Line Sites',
+    #                'Cell Line Types', ]
+    # best_acc = np.amax(val_cl_clf_acc, axis=0)
+    # best_acc_epochs = np.argmax(val_cl_clf_acc, axis=0)
+    #
+    # for index, clf_target in enumerate(clf_targets):
+    #     print('\t\t%-24s Best Accuracy: %.3f%% (Epoch = %3d)'
+    #           % (clf_target, best_acc[index],
+    #              best_acc_epochs[index] + 1 + args.resp_val_start_epoch))
+    #
+    # # Print best predictions for drug classifiers and regressor
+    # print('\t\tDrug Target Family \t Best Accuracy: %.3f%% (Epoch = %3d)'
+    #       % (np.max(val_drug_target_acc),
+    #          (np.argmax(val_drug_target_acc) +
+    #           1 + args.resp_val_start_epoch)))
+    #
+    # print('\t\tDrug Weighted QED \t Best R2 Score: %+6.4f '
+    #       '(Epoch = %3d, MSE = %8.6f, MAE = %8.6f)'
+    #       % (np.max(val_drug_qed_r2),
+    #          (np.argmax(val_drug_qed_r2) +
+    #           1 + args.resp_val_start_epoch),
+    #          val_drug_qed_mse[np.argmax(val_drug_qed_r2)],
+    #          val_drug_qed_mae[np.argmax(val_drug_qed_r2)]))
 
     # Print best R2 scores for drug response regressor
     val_data_sources = \
@@ -705,19 +710,19 @@ def main():
     best_epoch = val_resp_r2[:, val_index].argmax()
     print('\n\tBest Results from the Same Model (Epoch = %3d):'
           % (best_epoch + 1 + args.resp_val_start_epoch))
-    for index, clf_target in enumerate(clf_targets):
-        print('\t\t%-24s Accuracy: %.3f%%'
-              % (clf_target, val_cl_clf_acc[best_epoch, index]))
-
-    # Print best predictions for drug classifiers and regressor
-    print('\t\tDrug Target Family \t Accuracy: %.3f%% '
-          % (val_drug_target_acc[best_epoch]))
-
-    print('\t\tDrug Weighted QED \t R2 Score: %+6.4f '
-          '(MSE = %8.6f, MAE = %6.6f)'
-          % (val_drug_qed_r2[best_epoch],
-             val_drug_qed_mse[best_epoch],
-             val_drug_qed_mae[best_epoch]))
+    # for index, clf_target in enumerate(clf_targets):
+    #     print('\t\t%-24s Accuracy: %.3f%%'
+    #           % (clf_target, val_cl_clf_acc[best_epoch, index]))
+    #
+    # # Print best predictions for drug classifiers and regressor
+    # print('\t\tDrug Target Family \t Accuracy: %.3f%% '
+    #       % (val_drug_target_acc[best_epoch]))
+    #
+    # print('\t\tDrug Weighted QED \t R2 Score: %+6.4f '
+    #       '(MSE = %8.6f, MAE = %6.6f)'
+    #       % (val_drug_qed_r2[best_epoch],
+    #          val_drug_qed_mse[best_epoch],
+    #          val_drug_qed_mae[best_epoch]))
 
     for index, data_source in enumerate(val_data_sources):
         print('\t\t%-6s \t R2 Score: %+6.4f '
