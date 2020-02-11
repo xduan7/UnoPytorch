@@ -79,7 +79,7 @@ if __name__ == '__main__':
 
                 # Feature usage and partitioning settings
                 '--rnaseq_feature_usage', rnaseq_feature,
-                '--drug_feature_usage', 'latent',
+                '--drug_feature_usage', 'descriptor',
                 '--validation_ratio', '0.2',
                 # '--disjoint_drugs',
                 '--disjoint_cells',
@@ -95,7 +95,7 @@ if __name__ == '__main__':
                 '--drug_latent_dim', '1024',
 
                 # Using autoencoder for drug/sequence encoder init
-                '--autoencoder_init',
+                # '--autoencoder_init',
 
                 # Drug response regression network
                 '--resp_layer_dim', '2048',
@@ -106,17 +106,17 @@ if __name__ == '__main__':
                 '--resp_activation', 'none',
 
                 # Cell line classification network(s)
-                # '--cl_clf_layer_dim', '256',
-                # '--cl_clf_num_layers', '2',
+                '--cl_clf_layer_dim', '256',
+                '--cl_clf_num_layers', '2',
 
                 # Drug target family classification network
-                # '--drug_target_layer_dim', '1024',
-                # '--drug_target_num_layers', '2',
+                '--drug_target_layer_dim', '1024',
+                '--drug_target_num_layers', '2',
 
                 # Drug weighted QED regression network
-                # '--drug_qed_layer_dim', '1024',
-                # '--drug_qed_num_layers', '2',
-                # '--drug_qed_activation', 'sigmoid',
+                '--drug_qed_layer_dim', '1024',
+                '--drug_qed_num_layers', '2',
+                '--drug_qed_activation', 'sigmoid',
 
                 # Training and validation parameters ######################
                 # Drug response regression training parameters
@@ -131,17 +131,17 @@ if __name__ == '__main__':
                 # '--resp_uq_num_runs', '32',
 
                 # Cell line classification training parameters
-                # '--cl_clf_opt', 'SGD',
-                # '--cl_clf_lr', '8e-3',
+                '--cl_clf_opt', 'SGD',
+                '--cl_clf_lr', '8e-3',
 
                 # Drug target family classification training parameters
-                # '--drug_target_opt', 'SGD',
-                # '--drug_target_lr', '2e-3',
+                '--drug_target_opt', 'SGD',
+                '--drug_target_lr', '2e-3',
 
                 # Drug weighted QED regression training parameters
-                # '--drug_qed_loss_func', 'mse',
-                # '--drug_qed_opt', 'SGD',
-                # '--drug_qed_lr', '1e-2',
+                '--drug_qed_loss_func', 'mse',
+                '--drug_qed_opt', 'SGD',
+                '--drug_qed_lr', '1e-2',
 
                 # Starting epoch for drug response validation
                 '--resp_val_start_epoch', '20',
