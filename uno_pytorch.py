@@ -245,7 +245,7 @@ def main():
 
     # Data loaders for training/validation ####################################
     dataloader_kwargs = {
-        'timeout': 10,
+        'timeout': 0,
         'shuffle': 'True',
         # 'num_workers': multiprocessing.cpu_count() if use_cuda else 0,
         'num_workers': NUM_WORKER if use_cuda else 0,
@@ -547,11 +547,6 @@ def main():
         print('=' * 80 + '\nTraining Epoch %3i:' % (epoch + 1))
         epoch_start_time = time.time()
 
-        resp_lr_decay.step(epoch)
-        cl_clf_lr_decay.step(epoch)
-        drug_target_lr_decay.step(epoch)
-        drug_qed_lr_decay.step(epoch)
-
         # Training cell line classifier
         train_cl_clf(device=device,
                      category_clf_net=category_clf_net,
@@ -583,6 +578,11 @@ def main():
                    max_num_batches=args.max_num_batches,
                    loss_func=resp_loss_func,
                    optimizer=resp_opt)
+
+        resp_lr_decay.step(epoch)
+        cl_clf_lr_decay.step(epoch)
+        drug_target_lr_decay.step(epoch)
+        drug_qed_lr_decay.step(epoch)
 
         print('\nValidation Results:')
 
